@@ -1,0 +1,478 @@
+body {
+  padding-bottom: 40px;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chef-icon {
+  font-size: 26px;
+}
+
+.app-title {
+  font-size: 28px;
+  margin: 0;
+  color: var(--paper);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+.demo-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: var(--signal);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.demo-btn:active {
+  transform: scale(0.95);
+}
+
+.view-toggle {
+  display: flex;
+  gap: 10px;
+  padding: 18px 24px 0;
+}
+
+.toggle-btn {
+  padding: 11px 20px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.toggle-btn.active {
+  background: var(--signal);
+  color: #fff;
+}
+
+.ticket-grid {
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  padding: 48px;
+  text-align: center;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px dashed var(--hairline);
+  color: var(--text-muted);
+}
+
+.ticket {
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeInUp 0.2s ease-out;
+}
+
+.ticket.flash {
+  animation: flashPulse 0.9s ease-in-out 3;
+}
+
+.ticket.completed {
+  opacity: 0.7;
+}
+
+.ticket-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ticket-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--paper);
+}
+
+.ticket-id .hash {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--paper);
+}
+
+.meta-row .muted {
+  color: var(--text-muted);
+}
+
+.items-box {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.items-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.item-row-wrap {
+  margin-bottom: 4px;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--paper);
+}
+
+.item-row .qty {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.item-customization {
+  font-size: 11px;
+  color: var(--wait);
+  margin-top: 1px;
+}
+
+.elapsed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.elapsed-row.overdue {
+  color: var(--danger);
+}
+
+.action-btn {
+  width: 100%;
+  height: 56px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.action-btn.start {
+  background: var(--wait);
+}
+
+.action-btn.complete {
+  background: var(--go);
+}
+
+.action-btn:active {
+  transform: scale(0.97);
+}
+
+.completed-mini {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+
+.completed-mini .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.completed-mini .done-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--go);
+  color: var(--ink);
+}
+
+.completed-mini p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.date-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted, #9aa3af);
+  margin: 12px 0;
+}
+.date-input {
+  background: var(--surface, #12151a);
+  color: var(--text-main, #f3ecd8);
+  border: 1px solid var(--hairline, #2a2f3a);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+.completed-date-label {
+  padding: 0 4px;
+}
+#logoutBtn {
+  margin-left: 24px;
+}
+.app-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted, #9aa3af);
+  margin-top: 2px;
+}
+.date-line {
+  margin-top: 1px;
+}
+.stat-pill-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-pill-stack .stat-pill {
+  white-space: nowrap;
+}
+
+/* ---------------- Order details modal ---------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 22px;
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.modal-header-row .icon-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.03em;
+  color: var(--paper);
+  margin: 0;
+}
+
+.details-top {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.ticket-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 2px;
+}
+
+.details-big {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--paper);
+  margin: 0;
+}
+
+.details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-main);
+  padding: 6px 0;
+}
+
+.details-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.details-divider {
+  border-top: 1px dashed var(--hairline);
+  margin: 12px 0;
+}
+
+.details-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.details-item:last-of-type {
+  border-bottom: none;
+}
+
+.details-item-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--paper);
+}
+
+.details-item-custom {
+  font-size: 12px;
+  color: var(--wait);
+  margin-top: 2px;
+}
+
+.details-total {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--paper);
+}
+
+.void-info-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid var(--danger);
+}
+
+.void-info-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* Makes ticket/completed cards feel tappable now that they open details */
+.ticket.clickable,
+.completed-mini.clickable {
+  cursor: pointer;
+}
+
+.ticket.clickable:active,
+.completed-mini.clickable:active {
+  transform: scale(0.98);
+}

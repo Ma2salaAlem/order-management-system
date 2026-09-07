@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Barista Display</title>
+<link rel="stylesheet" href="/theme.css" />
+<link rel="stylesheet" href="barista.css" />
+</head>
+<body>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1>BARISTA DISPLAY</h1>
+      <p class="subtitle">Barista / Manager sign in</p>
+
+      <form id="loginForm">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="username" required />
+
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required />
+
+        <button type="submit" class="login-submit">Sign In</button>
+        <p class="login-error" id="loginError"></p>
+      </form>
+
+      <div class="login-hint">
+        Demo logins — <strong>barista@demo.com</strong> or <strong>manager@demo.com</strong> / <strong>password123</strong><br/>
+        (created by <span class="mono">npm run seed</span>)
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN APP ================= -->
+  <div id="appScreen" class="hidden">
+
+    <header class="app-header">
+      <div class="header-left">
+        <span class="chef-icon">👨‍🍳</span>
+        <div>
+          <h1 class="display-heading app-title">BARISTA DISPLAY</h1>
+          <p class="app-subtitle date-line" id="dateDisplay"></p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="stat-pill-stack">
+          <div class="stat-pill"><span class="dot" style="background:var(--wait)"></span><span id="pendingCount">0</span> Pending</div>
+          <div class="stat-pill"><span class="dot" style="background:var(--prog)"></span><span id="progressCount">0</span> In Progress</div>
+        </div>
+        <button id="muteBtn" class="icon-btn" aria-label="Mute chime">🔊</button>
+        <button id="demoOrderBtn" class="demo-btn">＋ Simulate Order</button>
+        <button id="logoutBtn" class="icon-btn" aria-label="Log out" title="Log out">🚪</button>
+      </div>
+    </header>
+
+    <div class="view-toggle">
+      <button class="toggle-btn active" data-view="active">Active Queue <span id="activeTabCount"></span></button>
+      <button class="toggle-btn" data-view="completed">Recent Completed <span id="completedTabCount"></span></button>
+    </div>
+
+    <section id="activeView" class="ticket-grid"></section>
+    <section id="completedView" class="ticket-grid hidden">
+      <label class="date-picker-label completed-date-label">
+        Day
+        <input type="date" id="completedDateInput" class="date-input" />
+      </label>
+      <div id="completedGrid" class="ticket-grid"></div>
+    </section>
+
+  </div>
+
+  <!-- ---------------- Order details modal ---------------- -->
+  <div id="orderDetailsModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h2 class="modal-title">Order Details</h2>
+        <button type="button" id="orderDetailsCloseBtn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="orderDetailsBody"></div>
+    </div>
+  </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="barista.js"></script>
+</body>
+</html>
