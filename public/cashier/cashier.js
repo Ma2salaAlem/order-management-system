@@ -11,10 +11,7 @@
   let selectedOrderIds = new Set();
 
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
   const logoutBtn = document.getElementById('logoutBtn');
   const refreshBtn = document.getElementById('refreshBtn');
   const dateDisplay = document.getElementById('dateDisplay');
@@ -128,9 +125,7 @@
   // Same fix as the Chef/Barista displays: before this, an expired login
   // failed silently — the socket's reconnect was rejected, so the cashier
   // stopped getting "ready" alerts and couldn't send orders, with nothing
-  // on screen saying why. Now it drops back to the sign-in screen and
-  // says so. Nothing is reloaded, so a half-entered order is still there
-  // after signing back in.
+  // on screen saying why. Now it goes to the sign-in page and says so.
   function sessionExpired() {
     if (!token) return; // already handled
     token = null;
@@ -143,8 +138,7 @@
       socket = null;
     }
     setConnectionWarning(false);
-    showLogin();
-    loginError.textContent = 'Your login expired — sign in again to keep taking orders.';
+    goToLogin(true);
   }
 
   // Red banner while the live connection is down — "ready" alerts can't
@@ -161,43 +155,22 @@
   }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
-  }
-  function showLogin() {
-    appScreen.classList.add('hidden');
-    loginScreen.classList.remove('hidden');
   }
 
   // ---------------- Auth ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      if (data.user.role !== 'CASHIER' && data.user.role !== 'MANAGER') {
-        loginError.textContent = 'This account is not a cashier or manager account.';
-        return;
-      }
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_cashier_token', token);
-      localStorage.setItem('kds_cashier_user', JSON.stringify(user));
-      boot();
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_cashier_token and sends the cashier back here.
+  function goToLogin(expired) {
+    location.replace(`/login/?role=cashier${expired ? '&expired=1' : ''}`);
+  }
 
   logoutBtn.addEventListener('click', () => {
     token = null;
     user = null;
     localStorage.removeItem('kds_cashier_token');
     localStorage.removeItem('kds_cashier_user');
-    showLogin();
+    goToLogin();
   });
 
   refreshBtn.addEventListener('click', () => {
@@ -942,9 +915,8 @@
     headerDateInput.value = todayISO();
     historyDateInput.value = todayISO();
     connectSocket();
-    // Mounted once; on a later sign-in (e.g. after an expired login) its
-    // waitress/table/menu lists are reloaded, since the first load may
-    // have been rejected. A half-entered order is kept either way.
+    // Mounted once per page load (signing in again goes through /login/
+    // and reloads the page).
     if (!orderEntry) orderEntry = window.CashierOrderEntry({ api, showToast, escapeHtml, customizationSummary });
     else orderEntry.refresh().catch((err) => showToast(err.message || 'Failed to load the menu', true));
     await loadUnpaidOrders();
@@ -955,9 +927,9 @@
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_cashier_token');
       localStorage.removeItem('kds_cashier_user');
-      showLogin();
+      goToLogin();
     });
   } else {
-    showLogin();
+    goToLogin();
   }
 })();

@@ -25,6 +25,9 @@ function createApp() {
   // that's fine" response — no fake/placeholder icon file needed.
   app.get('/favicon.ico', (req, res) => res.status(204).end());
 
+  // One sign-in page for every role; the bare site address goes there.
+  app.get('/', (req, res) => res.redirect('/login/'));
+
   // Serve the plain HTML/CSS/JS frontends
   // http://localhost:PORT/waiter/  and  http://localhost:PORT/barista/
   app.use(express.static(path.join(__dirname, '..', 'public')));

@@ -299,7 +299,13 @@ function validatePayload(body, { partial }) {
     if (!Array.isArray(customizableIngredients) || customizableIngredients.some((i) => typeof i !== 'string')) {
       return { error: 'customizableIngredients must be an array of strings' };
     }
-    data.customizableIngredients = customizableIngredients;
+    // Split any entry that still holds several ingredients (e.g. typed with
+    // the Amharic keyboard's "፣" instead of ","), trim, and drop duplicates.
+    const seen = new Set();
+    data.customizableIngredients = customizableIngredients
+      .flatMap((i) => i.split(/[,،，፣፤;\n]+/))
+      .map((i) => i.trim())
+      .filter((i) => i && !seen.has(i.toLowerCase()) && seen.add(i.toLowerCase()));
   }
 
   if (extraOptions !== undefined) {

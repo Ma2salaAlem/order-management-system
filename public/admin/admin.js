@@ -116,10 +116,7 @@
   };
 
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
 
   const dateInput = document.getElementById('dateInput');
   const refreshBtn = document.getElementById('refreshBtn');
@@ -312,40 +309,20 @@
   }
 
   // ---------------- Login ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (data.user.role !== 'MANAGER') {
-        loginError.textContent = 'This dashboard is for manager accounts only.';
-        return;
-      }
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_admin_token', token);
-      localStorage.setItem('kds_admin_user', JSON.stringify(user));
-      boot();
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_admin_token and sends the manager back here.
+  function goToLogin() {
+    location.replace('/login/?role=manager');
+  }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
   }
 
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('kds_admin_token');
     localStorage.removeItem('kds_admin_user');
-    location.reload();
+    goToLogin();
   });
 
   // ---------------- View toggle ----------------
@@ -1976,6 +1953,28 @@
     menuItemImagePreview.style.display = 'none';
   });
 
+  // Removable ingredients are typed as one list. Accept every separator
+  // staff actually type: the English comma, the Amharic keyboard's
+  // Ethiopic comma "፣" (and "፤"), Arabic/full-width commas, ";" and new
+  // lines — splitting on "," alone saved "ሽንኩርት፣ ቃሪያ" as ONE ingredient.
+  function splitIngredients(text) {
+    const seen = new Set();
+    return String(text || '')
+      .split(/[,،，፣፤;\n]+/)
+      .map((s) => s.trim())
+      .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+  }
+
+  // Enter in this field starts the next ingredient instead of submitting
+  // the whole form (which is what made it seem to take only one).
+  document.getElementById('menuItemIngredients').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const input = e.target;
+    const value = input.value.replace(/[\s,،，፣፤;]+$/, '');
+    if (value) input.value = `${value}, `;
+  });
+
   function collectExtraRows() {
     return Array.from(menuItemExtrasList.querySelectorAll('.extra-row'))
       .map((row) => ({
@@ -2024,8 +2023,10 @@
       document.querySelectorAll('.temp-opt').forEach((cb) => {
         cb.checked = Array.isArray(item.temperatureOptions) && item.temperatureOptions.includes(cb.value);
       });
+      // Re-split on load too, so an ingredient list saved before this fix
+      // as one long entry ("ሽንኩርት፣ ቃሪያ") shows — and re-saves — as two.
       document.getElementById('menuItemIngredients').value = Array.isArray(item.customizableIngredients)
-        ? item.customizableIngredients.join(', ')
+        ? splitIngredients(item.customizableIngredients.join(', ')).join(', ')
         : '';
       const extras = Array.isArray(item.extraOptions) ? item.extraOptions : [];
       extras.forEach((e) => addExtraRow(e.name, e.price));
@@ -2055,11 +2056,7 @@
     const isFeatured = document.getElementById('menuItemFeatured').checked;
     const hasTemperatureOption = menuItemHasTempCheckbox.checked;
     const temperatureOptions = Array.from(document.querySelectorAll('.temp-opt:checked')).map((cb) => cb.value);
-    const customizableIngredients = document
-      .getElementById('menuItemIngredients')
-      .value.split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const customizableIngredients = splitIngredients(document.getElementById('menuItemIngredients').value);
     const extraOptions = collectExtraRows();
 
     if (!name) {
@@ -2131,8 +2128,9 @@
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_admin_token');
       localStorage.removeItem('kds_admin_user');
-      loginScreen.classList.remove('hidden');
-      appScreen.classList.add('hidden');
+      goToLogin();
     });
+  } else {
+    goToLogin();
   }
 })();

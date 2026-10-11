@@ -211,7 +211,13 @@
     'Mark Paid & Print Receipt': 'ተከፍሏል — ደረሰኝ አትም',
     'Payment recorded': 'ክፍያው ተመዝግቧል',
     'Failed to record payment': 'ክፍያውን መመዝገብ አልተቻለም',
+    'Signing in…': 'በመግባት ላይ…',
+    'Your login expired — sign in again.': 'የመግቢያ ጊዜዎ አልፏል — እንደገና ይግቡ።',
+    "Can't reach the server — check the internet and try again": 'ሰርቨሩን ማግኘት አልተቻለም — ኢንተርኔቱን አረጋግጠው እንደገና ይሞክሩ',
+    'This browser is blocking saved logins — turn off private mode and try again':
+      'ይህ ብራውዘር መግቢያን እንዳይቀመጥ እየከለከለ ነው — የግል (private) ሁነታን አጥፍተው እንደገና ይሞክሩ',
     'Add Items': 'ዕቃ ጨምር',
+    'Separate with a comma (, or ፣) — or press Enter after each one': 'በኮማ (, ወይም ፣) ይለዩ — ወይም ከእያንዳንዱ በኋላ Enter ይጫኑ',
     'Add Items for this table': 'ለዚህ ጠረጴዛ ዕቃ ጨምር',
     'Order total': 'የትዕዛዙ ድምር',
     'There are items on an unsent ticket for another table. Discard them and add items for this bill?':
@@ -453,6 +459,7 @@
     [/^(\d+)m (\d+)s ago$/, (m, s) => `ከ${m} ደቂቃ ${s} ሰከንድ በፊት`],
     [/^(\d+)s ago$/, (s) => `ከ${s} ሰከንድ በፊት`],
     [/^(\d+)m ago$/, (m) => `ከ${m} ደቂቃ በፊት`],
+    [/^This account can't sign in to the (\S+) screen$/, (s) => `ይህ መለያ ወደ ${tx(s)} ስክሪን መግባት አይችልም`],
     [/^Table (\S+) · (\d+) orders$/, (tb, n) => `ጠረጴዛ ${tb} · ${n} ትዕዛዞች`],
     [/^Table (\S+) · (.+)$/, (tb, w) => `ጠረጴዛ ${tb} · ${w}`],
     [/^(\d+) open bills on this table$/, (n) => `በዚህ ጠረጴዛ ${n} ያልተከፈሉ ሂሳቦች`],

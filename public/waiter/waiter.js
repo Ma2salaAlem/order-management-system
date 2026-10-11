@@ -122,10 +122,7 @@
   const LEGACY_TEMPERATURE_OPTIONS = ['HOT', 'COLD', 'NORMAL']; // fallback for older items saved before per-item lists existed
 
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
 
   const tableStatusLine = document.getElementById('tableStatusLine');
   const dateDisplay = document.getElementById('dateDisplay');
@@ -259,44 +256,20 @@
   }
 
   // ---------------- Login ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_waiter_token', token);
-      localStorage.setItem('kds_waiter_user', JSON.stringify(user));
-      boot().catch((bootErr) => {
-        // boot() itself is a fire-and-forget call here, so without this
-        // catch a failure inside it (e.g. categories failing to load)
-        // becomes a silent unhandled rejection — the app screen is
-        // already showing by the time it happens, so nothing would ever
-        // tell you it broke. Surface it instead of leaving the screen blank.
-        console.error('Boot failed after login:', bootErr);
-        loginError.textContent = `Something went wrong loading the menu: ${bootErr.message || bootErr}`;
-      });
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_waiter_token and sends the waiter back here.
+  function goToLogin(expired) {
+    location.replace(`/login/?role=waiter${expired ? '&expired=1' : ''}`);
+  }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
   }
 
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('kds_waiter_token');
     localStorage.removeItem('kds_waiter_user');
-    location.reload();
+    goToLogin();
   });
 
   // ---------------- Socket ----------------
@@ -1128,8 +1101,9 @@
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_waiter_token');
       localStorage.removeItem('kds_waiter_user');
-      loginScreen.classList.remove('hidden');
-      appScreen.classList.add('hidden');
+      goToLogin();
     });
+  } else {
+    goToLogin();
   }
 })();

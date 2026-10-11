@@ -36,10 +36,7 @@
   document.addEventListener('keydown', unlockAudioOnce, { once: true });
 
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
 
   const pendingCountEl = document.getElementById('pendingCount');
   const progressCountEl = document.getElementById('progressCount');
@@ -104,9 +101,7 @@
       socket = null;
     }
     setConnectionWarning(false);
-    appScreen.classList.add('hidden');
-    loginScreen.classList.remove('hidden');
-    loginError.textContent = 'Your login expired — sign in again to keep receiving orders.';
+    goToLogin(true);
   }
 
   // Red banner while the server can't be reached (Wi-Fi down, server
@@ -151,36 +146,13 @@
   }
 
   // ---------------- Login ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (data.user.role !== 'CHEF' && data.user.role !== 'MANAGER') {
-        loginError.textContent = 'This screen is for chef or manager accounts.';
-        return;
-      }
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_chef_token', token);
-      localStorage.setItem('kds_chef_user', JSON.stringify(user));
-      boot().catch((bootErr) => {
-        console.error('Boot failed after login:', bootErr);
-        loginError.textContent = `Something went wrong loading the queue: ${bootErr.message || bootErr}`;
-      });
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_chef_token and sends the chef back here.
+  function goToLogin(expired) {
+    location.replace(`/login/?role=chef${expired ? '&expired=1' : ''}`);
+  }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
   }
 
@@ -315,7 +287,7 @@
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('kds_chef_token');
     localStorage.removeItem('kds_chef_user');
-    location.reload();
+    goToLogin();
   });
 
   // ---------------- Status actions ----------------
@@ -730,8 +702,9 @@
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_chef_token');
       localStorage.removeItem('kds_chef_user');
-      loginScreen.classList.remove('hidden');
-      appScreen.classList.add('hidden');
+      goToLogin();
     });
+  } else {
+    goToLogin();
   }
 })();
