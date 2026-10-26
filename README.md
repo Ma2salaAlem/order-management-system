@@ -115,6 +115,22 @@ Also available once the server is running: **`http://localhost:4000/admin/`**
 For development with auto-restart on file changes, use `npm run dev`
 instead of `npm start` (requires `nodemon`, already in devDependencies).
 
+## Hosting it online (no command line)
+
+`render.yaml` lets [Render](https://render.com) set everything up from its
+website: sign in with GitHub → **New** → **Blueprint** → pick this repo →
+**Apply**. It creates the app and a Postgres database, generates
+`JWT_SECRET`, runs migrations, and seeds the demo data on first boot
+(`src/seedIfEmpty.js` skips seeding once users exist, so redeploys don't
+reset your menu). You get a public `https://….onrender.com` URL — add
+`/waiter/`, `/barista/`, `/chef/` or `/admin/` to it.
+
+Free-tier caveats: the app sleeps after ~15 minutes idle (first visit then
+takes ~1 minute), the free database expires after 30 days unless upgraded,
+and uploaded payment screenshots are lost on each redeploy. Anyone with the
+URL can sign in with the demo logins, so change those passwords before
+sharing widely.
+
 ## Item customization (temperature, ingredients, extras)
 
 Menu items can now carry three kinds of customization, all defined per
