@@ -49,12 +49,12 @@ async function main() {
       name: 'Blueberry Muffin', price: 3.25, categoryId: snacks.id,
     },
     {
-      name: 'Loaded Fries', price: 4.5, categoryId: snacks.id,
+      name: 'Loaded Fries', price: 4.5, categoryId: snacks.id, isFeatured: true,
       customizableIngredients: ['Cheese', 'Bacon Bits', 'Green Onions'],
       extraOptions: [{ name: 'Extra Cheese', price: 1.0 }],
     },
     {
-      name: 'Beef Burger', price: 9.5, categoryId: meals.id,
+      name: 'Beef Burger', price: 9.5, categoryId: meals.id, isFeatured: true,
       customizableIngredients: ['Onions', 'Pickles', 'Lettuce', 'Tomato', 'Cheese'],
       extraOptions: [{ name: 'Extra Patty', price: 2.5 }, { name: 'Bacon', price: 1.5 }, { name: 'Extra Cheese', price: 1.0 }],
     },
@@ -100,7 +100,7 @@ async function main() {
     // Coffee Drinks
     { name: 'Espresso', price: 2.5, categoryId: hotDrinks.id, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'], extraOptions: [{ name: 'Extra Shot', price: 0.75 }] },
     { name: 'Latte', price: 0, categoryId: hotDrinks.id, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'] },
-    { name: 'Cappuccino', price: 3.5, categoryId: hotDrinks.id, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'], extraOptions: [{ name: 'Extra Shot', price: 0.75 }, { name: 'Whipped Cream', price: 0.5 }] },
+    { name: 'Cappuccino', price: 3.5, categoryId: hotDrinks.id, isFeatured: true, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'], extraOptions: [{ name: 'Extra Shot', price: 0.75 }, { name: 'Whipped Cream', price: 0.5 }] },
     { name: 'Iced Latte', price: 4.0, categoryId: hotDrinks.id, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'], extraOptions: [{ name: 'Extra Shot', price: 0.75 }, { name: 'Vanilla Syrup', price: 0.5 }] },
     { name: 'Americano', price: 0, categoryId: hotDrinks.id, hasTemperatureOption: true, temperatureOptions: ['HOT', 'COLD', 'NORMAL'] },
     // Tea Drinks
@@ -263,6 +263,7 @@ async function main() {
       name: item.name,
       price: item.price,
       categoryId: item.categoryId,
+      isFeatured: item.isFeatured || false,
       hasTemperatureOption: item.hasTemperatureOption || false,
       temperatureOptions: item.temperatureOptions || [],
       customizableIngredients: item.customizableIngredients || [],

@@ -17,28 +17,27 @@ const {
 // Every order route requires a valid, authenticated user
 router.use(authenticate);
 
-// Barista/Chef Display — active queue. Both displays receive every order
-// and filter client-side to the items relevant to them (drinks vs food).
+// Barista Display — active queue (barista/chef/manager — both kitchen
+// displays share this endpoint and each filters to its own items
+// client-side via the `station` tag on each order item)
 router.get('/', roleGuard(['BARISTA', 'CHEF', 'MANAGER']), listActiveOrders);
 
-// Barista/Chef Display — today's completed orders (or a picked date), so
-// "Recent Completed" is still populated after a page refresh
+// Barista/Chef Display — today's completed orders, so "Recent Completed" is
+// still populated after a page refresh instead of resetting to empty
 router.get('/completed', roleGuard(['BARISTA', 'CHEF', 'MANAGER']), listCompletedToday);
 
-// Waiter screen — that waiter's own orders (for a given day)
+// Waiter screen — that waiter's own recent orders
 router.get('/mine', roleGuard(['WAITER']), listMyOrders);
 
 // Manager dashboard — every order for a given day, any status
 router.get('/all', roleGuard(['MANAGER']), listAllOrdersForDay);
 
-// Waiter submits an order
-router.post('/', roleGuard(['WAITER']), createOrder);
+// Waiter submits an order — or the cashier (or a manager at the cashier
+// screen) enters one on a waitress's behalf from her paper ticket; the
+// controller then requires body.waiterId naming that waitress.
+router.post('/', roleGuard(['WAITER', 'CASHIER', 'MANAGER']), createOrder);
 
-// Barista/Chef/manager updates status — logged regardless of who calls it.
-// NOTE: status lives on the whole order, not per item — if a single order
-// mixes food and drink items, marking it complete on one display marks it
-// complete for both. Splitting status per item would need a bigger change;
-// flagging this now in case it matters for how you use these two screens.
+// Barista/Chef/manager updates status — logged regardless of who calls it
 router.patch(
   '/:id/status',
   auditAttempt('ORDER_STATUS_CHANGE'),

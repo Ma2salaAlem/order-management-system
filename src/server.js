@@ -2,6 +2,7 @@ require('dotenv').config();
 const http = require('http');
 const createApp = require('./app');
 const { initSocket } = require('./socket');
+const { startBackupSchedule } = require('./controllers/backupController');
 
 const app = createApp();
 const httpServer = http.createServer(app); // shared server so Express + Socket.io use one port
@@ -15,5 +16,7 @@ httpServer.listen(PORT, () => {
   console.log(`  → Waiter:  http://localhost:${PORT}/waiter/`);
   console.log(`  → Barista: http://localhost:${PORT}/barista/`);
   console.log(`  → Chef:    http://localhost:${PORT}/chef/`);
+  console.log(`  → Manager: http://localhost:${PORT}/admin/`);
   console.log(`  → Manager: http://localhost:${PORT}/admin/\n`);
+  startBackupSchedule(); // nightly 04:00 Addis — see backupController.js
 });

@@ -10,6 +10,7 @@
 
   let currentDate = todayISO();
   let currentOrders = [];
+  let lastOverviewReport = null; // cached report from the last loadOverview() call, patched live off socket events
   let pendingVoidOrderId = null;
 
   let itemsCategoryFilter = 'all'; // 'all' | 'drinks' | 'food' — for the Items Ordered Today panel
@@ -19,6 +20,7 @@
   let lastItemsOrdered = []; // most recent report.itemsOrdered, re-rendered when the category filter changes
   let itemCategoryMap = new Map(); // menu item name -> 'drinks' | 'food' | null, built from currentOrders
   let itemMidCategoryMap = new Map(); // menu item name -> 'Alcohol' | 'Hot Drinks' | 'Juices & Smoothies' | 'Soft Drinks' | null
+  let itemTopCategoryMap = new Map(); // menu item name -> 'Drinks' | 'Meals' | 'Snacks' | null — the real top-level category name, for the CATEGORY column badge
 
   // ---------------- Stock (backed by /api/stock — synced across every login) ----------------
   let stockItems = [];
@@ -33,17 +35,20 @@
   let extraRowSeq = 0; // unique-enough ids for dynamically added extra rows
   let menuCategoryFilter = 'all'; // 'all' | 'drinks' | 'food' — for the Menu tab
   let menuTopSellersMode = false; // ranks the Menu tab by units sold on the selected date
+  let menuSearchQuery = ''; // free-text filter on item name / category path, lowercased
 
   const FOOD_TOP_CATEGORIES = ['Snacks', 'Meals'];
 
-  // Walk a menu item's category up to its top-level ancestor (mirrors the
-  // same logic the Barista/Chef displays use to split a ticket into
-  // drink items vs food items).
+  // GET /api/menu-items deliberately returns a SHALLOW category object
+  // (`{ id, name }`, no `.parent` link) — climbing menuItem.category.parent
+  // here doesn't work at all, it's simply not in the response. What IS
+  // always present is `categoryPath`, a ready-made string like
+  // "Drinks > Hot Drinks" or "Meals" built server-side — its first
+  // segment is always the true top-level category name, regardless of
+  // how many levels deep the item actually sits.
   function topCategoryName(menuItem) {
-    let c = menuItem && menuItem.category;
-    if (!c) return null;
-    while (c.parent) c = c.parent;
-    return c.name;
+    if (!menuItem || !menuItem.categoryPath) return null;
+    return menuItem.categoryPath.split(' > ')[0] || null;
   }
   function categoryBucket(menuItem) {
     const top = topCategoryName(menuItem);
@@ -57,13 +62,15 @@
   }
 
   // The drink sub-type just below "Drinks" — Alcohol, Hot Drinks,
-  // Juices & Smoothies, or Soft Drinks. Climbs past any deeper alcohol
-  // sub-type (Red Wine, Whisky, etc.) to land on "Alcohol" itself.
+  // Juices & Smoothies, or Soft Drinks. The second segment of
+  // categoryPath is always this level regardless of how much deeper the
+  // item nests below it (e.g. "Drinks > Alcohol > Whisky" still gives
+  // "Alcohol" here, same as topCategoryName above avoiding the
+  // unavailable .parent chain).
   function midCategoryName(menuItem) {
-    let c = menuItem && menuItem.category;
-    if (!c) return null;
-    while (c.parent && c.parent.parent) c = c.parent;
-    return c.name;
+    if (!menuItem || !menuItem.categoryPath) return null;
+    const segments = menuItem.categoryPath.split(' > ');
+    return segments.length >= 2 ? segments[1] : null;
   }
 
   // Small colored tag shown after a drink's name: red = Alcohol,
@@ -80,6 +87,16 @@
     return t ? ` <span class="category-tag ${t.cls}">${t.label}</span>` : '';
   }
 
+  // The CATEGORY column's badge — Drink/Meal/Snack, one level up from the
+  // Alcohol/Hot Drinks/etc. sub-tag above. 'top' is the real category
+  // name (from itemTopCategoryMap), e.g. 'Drinks', 'Meals', 'Snacks'.
+  function categoryTypeBadgeHtml(top) {
+    if (top === 'Drinks') return '<span class="category-type-badge drinks">Drink</span>';
+    if (top === 'Meals') return '<span class="category-type-badge meals">Meal</span>';
+    if (top === 'Snacks') return '<span class="category-type-badge snacks">Snack</span>';
+    return '<span class="category-type-badge unknown">—</span>';
+  }
+
   const STATUS_META = {
     PENDING: { label: 'Pending', color: 'var(--wait)' },
     IN_PROGRESS: { label: 'In Progress', color: 'var(--prog)' },
@@ -89,16 +106,25 @@
 
   const TEMPERATURE_LABELS = { HOT: '🔥 Hot', COLD: '🥶 Cold', NORMAL: '🌡 Normal', NORMAL_WITH_ICE: '🧊 Normal + Ice' };
 
+  const PAYMENT_METHOD_LABELS = {
+    CASH: 'Cash',
+    CARD: 'Card',
+    TELEBIRR: 'Telebirr',
+    CBE: 'CBE',
+    BOA: 'BOA',
+    MOBILE_MONEY: 'Mobile Money',
+  };
+
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
 
   const dateInput = document.getElementById('dateInput');
   const refreshBtn = document.getElementById('refreshBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const toggleBtns = document.querySelectorAll('.toggle-btn');
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const mobileNavDropdown = document.getElementById('mobileNavDropdown');
+  const mobileNavItems = document.querySelectorAll('.mobile-nav-item');
 
   const overviewView = document.getElementById('overviewView');
   const ordersView = document.getElementById('ordersView');
@@ -138,12 +164,42 @@
   const addExtraRowBtn = document.getElementById('addExtraRowBtn');
   const menuCategoryFilterRow = document.getElementById('menuCategoryFilter');
   const menuTopSellersBtn = document.getElementById('menuTopSellersBtn');
+  const menuSearchInput = document.getElementById('menuSearchInput');
 
   const statGrid = document.getElementById('statGrid');
   const itemsTable = document.getElementById('itemsTable');
   const flaggedTable = document.getElementById('flaggedTable');
   const ordersTable = document.getElementById('ordersTable');
   const staffTable = document.getElementById('staffTable');
+
+  // ---------------- Phone layout for the data tables ----------------
+  // On a phone, the Orders/Staff/Menu/Stock/Blocked tables were wider than
+  // the screen — Total, Status and the Void/Edit/Deactivate buttons sat
+  // off the right edge. admin.css turns each row into a card under 640px,
+  // which needs every cell to know its column name (shown as a label) and
+  // its content in one wrapper. Done here once, automatically after every
+  // re-render, rather than inside each table's render function. Moving the
+  // nodes keeps any click listeners already attached to them.
+  function labelTableForPhone(container) {
+    container.querySelectorAll('table.grid').forEach((table) => {
+      const headers = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach((tr) => {
+        [...tr.children].forEach((td, i) => {
+          if (td.firstElementChild && td.firstElementChild.classList.contains('cell-value')) return;
+          if (headers[i]) td.dataset.label = headers[i];
+          const wrap = document.createElement('div');
+          wrap.className = 'cell-value';
+          while (td.firstChild) wrap.appendChild(td.firstChild);
+          td.appendChild(wrap);
+        });
+      });
+    });
+  }
+  [ordersTable, staffTable, menuItemsTable, stockTable, flaggedTable].forEach((container) => {
+    if (!container) return;
+    container.classList.add('phone-cards');
+    new MutationObserver(() => labelTableForPhone(container)).observe(container, { childList: true });
+  });
 
   const itemsCategoryFilterRow = document.getElementById('itemsCategoryFilter');
   const itemsPeriodFilterRow = document.getElementById('itemsPeriodFilter');
@@ -166,6 +222,17 @@
   const detailsBody = document.getElementById('detailsBody');
   const detailsCloseBtn = document.getElementById('detailsCloseBtn');
 
+  const receiptModal = document.getElementById('receiptModal');
+  const receiptBody = document.getElementById('receiptBody');
+  const receiptCloseBtn = document.getElementById('receiptCloseBtn');
+  const receiptPrintBtn = document.getElementById('receiptPrintBtn');
+  const receiptPrintArea = document.getElementById('receiptPrintArea');
+
+  const screenshotLightbox = document.getElementById('screenshotLightbox');
+  const lightboxImage = document.getElementById('lightboxImage');
+  const lightboxFallback = document.getElementById('lightboxFallback');
+  const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
+
   const toastEl = document.getElementById('toast');
 
   // ---------------- API helper ----------------
@@ -182,11 +249,30 @@
       const body = await res.json().catch(() => ({}));
       throw new Error(body.error || `Request failed: ${res.status}`);
     }
+    // Deletes answer "204 No Content" — there's no JSON to parse, and
+    // trying to showed "Unexpected end of JSON input" after a delete that
+    // had actually worked (menu items, stock items, stock links).
+    if (res.status === 204) return null;
     return res.json();
   }
 
+  // Addis Ababa is UTC+3, no DST — same reasoning as orderController.js's
+  // addisDayStart(). Neither the raw UTC date (new Date().toISOString())
+  // nor the browser/OS's own local date can be trusted to match Addis
+  // Ababa's calendar day — the manager's computer may be set to a
+  // different timezone entirely — so this shifts the current UTC instant
+  // by the fixed offset before reading the date off it. Keeping this
+  // function as the SINGLE source of "today" (used both for the date
+  // picker's default and for every currentDate === todayISO() live-event
+  // guard below) is what matters most: as long as both sides agree, the
+  // exact timezone convention chosen is less important than never drifting.
   function todayISO() {
-    return new Date().toISOString().slice(0, 10);
+    const ADDIS_ABABA_UTC_OFFSET_HOURS = 3;
+    const nowInAddis = new Date(Date.now() + ADDIS_ABABA_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+    const y = nowInAddis.getUTCFullYear();
+    const m = String(nowInAddis.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(nowInAddis.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   function showToast(text, isError) {
@@ -223,57 +309,55 @@
   }
 
   // ---------------- Login ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (data.user.role !== 'MANAGER') {
-        loginError.textContent = 'This dashboard is for manager accounts only.';
-        return;
-      }
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_admin_token', token);
-      localStorage.setItem('kds_admin_user', JSON.stringify(user));
-      boot();
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_admin_token and sends the manager back here.
+  function goToLogin() {
+    location.replace('/login/?role=manager');
+  }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
   }
 
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('kds_admin_token');
     localStorage.removeItem('kds_admin_user');
-    location.reload();
+    goToLogin();
   });
 
   // ---------------- View toggle ----------------
+  // Shared by the desktop tab row (.toggle-btn) and the mobile hamburger
+  // dropdown (.mobile-nav-item) so both stay in sync no matter which one
+  // was used to switch views.
+  function switchView(view) {
+    toggleBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    mobileNavItems.forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    overviewView.classList.toggle('hidden', view !== 'overview');
+    ordersView.classList.toggle('hidden', view !== 'orders');
+    staffView.classList.toggle('hidden', view !== 'staff');
+    stockView.classList.toggle('hidden', view !== 'stock');
+    menuMgmtView.classList.toggle('hidden', view !== 'menu');
+    if (view === 'staff') loadStaff();
+    if (view === 'stock') loadStock();
+    if (view === 'menu') loadMenuItemsAdmin();
+  }
+
   toggleBtns.forEach((btn) => {
+    btn.addEventListener('click', () => switchView(btn.dataset.view));
+  });
+
+  mobileNavItems.forEach((btn) => {
     btn.addEventListener('click', () => {
-      toggleBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      const view = btn.dataset.view;
-      overviewView.classList.toggle('hidden', view !== 'overview');
-      ordersView.classList.toggle('hidden', view !== 'orders');
-      staffView.classList.toggle('hidden', view !== 'staff');
-      stockView.classList.toggle('hidden', view !== 'stock');
-      menuMgmtView.classList.toggle('hidden', view !== 'menu');
-      if (view === 'staff') loadStaff();
-      if (view === 'stock') loadStock();
-      if (view === 'menu') loadMenuItemsAdmin();
+      switchView(btn.dataset.view);
+      mobileNavDropdown.classList.add('hidden');
+      hamburgerBtn.setAttribute('aria-expanded', 'false');
     });
+  });
+
+  hamburgerBtn.addEventListener('click', () => {
+    const isOpen = !mobileNavDropdown.classList.contains('hidden');
+    mobileNavDropdown.classList.toggle('hidden', isOpen);
+    hamburgerBtn.setAttribute('aria-expanded', String(!isOpen));
   });
 
   // ---------------- Date control ----------------
@@ -340,10 +424,18 @@
     renderMenuItemsTable();
   });
 
+  // Real-time filtering as the manager types — combines with the
+  // category pills and Top Sellers mode rather than replacing them.
+  menuSearchInput.addEventListener('input', () => {
+    menuSearchQuery = menuSearchInput.value.trim().toLowerCase();
+    renderMenuItemsTable();
+  });
+
   // ---------------- Overview (daily reconciliation) ----------------
   async function loadOverview() {
     try {
       const report = await api(`/api/reports/daily?date=${currentDate}`);
+      lastOverviewReport = report;
       renderStatGrid(report);
       renderFlaggedTable(report.flaggedAttempts.details);
     } catch (err) {
@@ -440,7 +532,12 @@
     const s = report.summary;
     const cards = [
       { label: 'Orders Placed', value: s.ordersPlaced },
-      { label: 'Orders Voided', value: s.ordersVoided, tone: s.ordersVoided > 0 ? 'warn' : '' },
+      {
+        label: 'Orders Voided',
+        value: s.ordersVoided,
+        tone: s.ordersVoided > 0 ? 'warn' : '',
+        id: 'voidedCardBtn', // clickable — opens the Voided Orders list
+      },
       { label: 'Revenue (Live)', value: `$${s.liveRevenue.toFixed(2)}` },
       { label: 'Revenue (Logged)', value: `$${s.loggedRevenue.toFixed(2)}` },
       {
@@ -456,15 +553,125 @@
     ];
 
     statGrid.innerHTML = cards
-      .map(
-        (c) => `
+      .map((c) => {
+        if (c.id === 'voidedCardBtn') {
+          // A real <button> (keyboard + screen-reader friendly). Disabled
+          // when there's nothing to show.
+          const none = !c.value;
+          return `
+        <button type="button" id="voidedCardBtn" class="stat-card stat-card-btn ${c.tone || ''}"
+          aria-haspopup="dialog" ${none ? 'disabled' : ''}
+          aria-label="Orders voided: ${c.value}${none ? '' : '. View voided orders'}">
+          <p class="label">${c.label}</p>
+          <p class="value">${c.value}</p>
+          ${none ? '' : '<span class="card-hint" aria-hidden="true">View ›</span>'}
+        </button>`;
+        }
+        return `
         <div class="stat-card ${c.tone || ''}">
           <p class="label">${c.label}</p>
           <p class="value">${c.value}</p>
-        </div>`
-      )
+        </div>`;
+      })
       .join('');
+
+    const voidedCardBtn = document.getElementById('voidedCardBtn');
+    if (voidedCardBtn) voidedCardBtn.addEventListener('click', openVoidedModal);
   }
+
+  // ---------------- Voided orders modal ----------------
+  // Always fetched fresh for the selected date: the live socket patch only
+  // knows an order was voided, not who voided it or why.
+  const voidedModal = document.getElementById('voidedModal');
+  const voidedModalSub = document.getElementById('voidedModalSub');
+  const voidedBody = document.getElementById('voidedBody');
+  const voidedCloseBtn = document.getElementById('voidedCloseBtn');
+
+  async function openVoidedModal() {
+    const date = currentDate;
+    voidedModalSub.textContent = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    voidedBody.innerHTML = '<p class="voided-empty">Loading…</p>';
+    voidedModal.classList.remove('hidden');
+    voidedCloseBtn.focus();
+
+    try {
+      const orders = await api(`/api/orders/all?date=${date}&status=VOIDED`);
+      if (date !== currentDate || voidedModal.classList.contains('hidden')) return; // date changed / closed meanwhile
+      renderVoidedOrders(orders);
+    } catch (err) {
+      voidedBody.innerHTML = `<p class="voided-empty">${escapeHtml(err.message || 'Failed to load voided orders')}</p>`;
+    }
+  }
+
+  function renderVoidedOrders(orders) {
+    if (orders.length === 0) {
+      voidedBody.innerHTML = '<p class="voided-empty">No orders were voided on this day.</p>';
+      return;
+    }
+
+    const grandTotal = orders.reduce((s, o) => s + o.items.reduce((t, i) => t + lineTotal(i), 0), 0);
+
+    voidedBody.innerHTML =
+      orders
+        .map((o) => {
+          const total = o.items.reduce((s, i) => s + lineTotal(i), 0);
+          return `
+        <div class="voided-order">
+          <div class="voided-order-head">
+            <span class="mono">#${o.id.slice(0, 6).toUpperCase()} · Table ${escapeHtml(o.table.label)}</span>
+            <span class="mono">$${total.toFixed(2)}</span>
+          </div>
+          <div class="details-row"><span class="details-label">Waiter</span><span>${escapeHtml(o.waiter?.name || 'Unknown')}</span></div>
+          <div class="details-row"><span class="details-label">Placed</span><span>${new Date(o.createdAt).toLocaleTimeString()}</span></div>
+
+          <div class="details-divider"></div>
+          ${o.items
+            .map((it) => {
+              const summary = itemCustomizationSummary(it);
+              return `
+            <div class="details-item">
+              <div class="details-item-top">
+                <span>${it.quantity}× ${escapeHtml(it.menuItem.name)}</span>
+                <span class="mono">$${lineTotal(it).toFixed(2)}</span>
+              </div>
+              ${summary ? `<div class="details-item-custom">${escapeHtml(summary)}</div>` : ''}
+            </div>`;
+            })
+            .join('')}
+
+          <div class="void-info-box">
+            <p class="void-info-title">⛔ Voided</p>
+            <div class="details-row"><span class="details-label">Voided by</span><span>${escapeHtml(o.voidedBy?.name || 'Unknown')}</span></div>
+            <div class="details-row"><span class="details-label">Reason</span><span>${escapeHtml(o.voidReason || 'No reason given')}</span></div>
+            <div class="details-row"><span class="details-label">Voided at</span><span>${o.voidedAt ? new Date(o.voidedAt).toLocaleTimeString() : '—'}</span></div>
+          </div>
+        </div>`;
+        })
+        .join('') +
+      `<div class="details-divider"></div>
+      <div class="details-row details-total">
+        <span>Total voided (${orders.length})</span>
+        <span class="mono">$${grandTotal.toFixed(2)}</span>
+      </div>`;
+  }
+
+  function closeVoidedModal() {
+    voidedModal.classList.add('hidden');
+    const btn = document.getElementById('voidedCardBtn');
+    if (btn) btn.focus(); // return focus to the card that opened it
+  }
+  voidedCloseBtn.addEventListener('click', closeVoidedModal);
+  voidedModal.addEventListener('click', (e) => {
+    if (e.target === voidedModal) closeVoidedModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !voidedModal.classList.contains('hidden')) closeVoidedModal();
+  });
 
   function renderItemsTable(items) {
     let filtered =
@@ -488,9 +695,17 @@
 
     const RANK_MEDALS = ['🥇', '🥈', '🥉'];
 
+    // Totals over exactly the same `filtered` list the rows above are
+    // built from — since that already reflects the current Daily/Weekly/
+    // Monthly period AND the current All/Drinks/Food category filter,
+    // this row updates automatically every time renderItemsTable() is
+    // re-run for either kind of toggle, with no separate sync needed.
+    const totalQuantity = filtered.reduce((sum, i) => sum + i.quantity, 0);
+    const totalRevenue = filtered.reduce((sum, i) => sum + i.revenue, 0);
+
     itemsTable.innerHTML = `
       <table class="grid">
-        <thead><tr><th>${topSellersMode ? '#' : ''}Item</th><th>Quantity</th><th>Revenue</th></tr></thead>
+        <thead><tr><th>${topSellersMode ? '#' : ''}Item</th><th>Category</th><th>Quantity</th><th>Revenue</th></tr></thead>
         <tbody>
           ${filtered
             .map((i, idx) => {
@@ -502,13 +717,70 @@
               return `
             <tr>
               <td>${rankHtml}${escapeHtml(i.name)}${categoryTagHtml(itemMidCategoryMap.get(i.name))}</td>
+              <td>${categoryTypeBadgeHtml(itemTopCategoryMap.get(i.name))}</td>
               <td class="mono-cell">${i.quantity}</td>
               <td class="mono-cell">$${i.revenue.toFixed(2)}</td>
             </tr>`;
             })
             .join('')}
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td></td>
+            <td class="mono-cell"><strong>${totalQuantity}</strong></td>
+            <td class="mono-cell">
+              <div class="total-row-revenue-cell">
+                <strong>$${totalRevenue.toFixed(2)}</strong>
+                <button type="button" id="printItemsSummaryBtn" class="print-summary-btn" title="Print Summary" aria-label="Print Summary">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                </button>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>`;
+
+    document.getElementById('printItemsSummaryBtn').addEventListener('click', () => printItemsSummary(filtered, totalQuantity, totalRevenue));
+  }
+
+  // ---------------- Print: Items Ordered summary ----------------
+  const PERIOD_TITLE = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  const CATEGORY_TITLE = { all: 'All Items', drinks: 'Drinks', food: 'Food' };
+
+  function printItemsSummary(items, totalQuantity, totalRevenue) {
+    const periodLabel = PERIOD_TITLE[itemsPeriod] || itemsPeriod;
+    const rangeLabel = formatPeriodLabel(itemsPeriod, currentDate); // e.g. "This Month (September 2026)"
+    const categoryLabel = CATEGORY_TITLE[itemsCategoryFilter] || itemsCategoryFilter;
+
+    const rowsHtml = items
+      .map(
+        (i) => `
+        <tr>
+          <td>${escapeHtml(i.name)}</td>
+          <td>${categoryTypeBadgeHtml(itemTopCategoryMap.get(i.name))}</td>
+          <td class="mono-cell">${i.quantity}</td>
+          <td class="mono-cell">$${i.revenue.toFixed(2)}</td>
+        </tr>`
+      )
+      .join('');
+
+    document.getElementById('itemsSummaryPrintArea').innerHTML = `
+      <h1>Sales Summary Report — ${periodLabel} (${escapeHtml(rangeLabel)})</h1>
+      <p class="summary-print-meta">Category: ${escapeHtml(categoryLabel)} &nbsp;·&nbsp; Generated ${new Date().toLocaleString()}</p>
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Revenue</th></tr></thead>
+        <tbody>
+          ${rowsHtml}
+          <tr class="summary-print-total">
+            <td><strong>TOTAL</strong></td>
+            <td></td>
+            <td class="mono-cell"><strong>${totalQuantity}</strong></td>
+            <td class="mono-cell"><strong>$${totalRevenue.toFixed(2)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    window.print();
   }
 
   function renderFlaggedTable(details) {
@@ -554,9 +826,11 @@
   function rebuildItemCategoryMap() {
     itemCategoryMap = new Map();
     itemMidCategoryMap = new Map();
+    itemTopCategoryMap = new Map();
     menuItemsAdmin.forEach((m) => {
       itemCategoryMap.set(m.name, categoryBucket(m));
       itemMidCategoryMap.set(m.name, midCategoryName(m));
+      itemTopCategoryMap.set(m.name, topCategoryName(m));
     });
   }
 
@@ -717,6 +991,18 @@
         <span class="mono">$${total.toFixed(2)}</span>
       </div>
 
+      <div class="details-actions-row">
+        <button type="button" class="details-action-btn" id="viewReceiptBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+          View Receipt
+        </button>
+        <button type="button" class="details-action-btn" id="viewScreenshotBtn" ${order.paymentScreenshotUrl ? '' : 'disabled title="No screenshot uploaded for this transaction"'}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          View Screenshot
+        </button>
+      </div>
+      ${!order.paymentScreenshotUrl ? '<p class="field-hint">No screenshot uploaded for this transaction.</p>' : ''}
+
       ${
         order.isVoided
           ? `
@@ -730,10 +1016,111 @@
       }
     `;
 
+    document.getElementById('viewReceiptBtn').addEventListener('click', () => openReceiptModal(order));
+    const screenshotBtn = document.getElementById('viewScreenshotBtn');
+    if (order.paymentScreenshotUrl) {
+      screenshotBtn.addEventListener('click', () => openScreenshotLightbox(order.paymentScreenshotUrl));
+    }
+
     detailsModal.classList.remove('hidden');
   }
 
   detailsCloseBtn.addEventListener('click', () => detailsModal.classList.add('hidden'));
+
+  // ---------------- Receipt preview ----------------
+  function openReceiptModal(order) {
+    const total = order.items.reduce((s, i) => s + lineTotal(i), 0);
+    const methodLabel = order.isPaid ? (PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod) : 'Not yet paid';
+
+    receiptBody.innerHTML = `
+      <div class="details-top">
+        <div>
+          <p class="ticket-eyebrow">Ticket</p>
+          <p class="details-big mono">#${order.id.slice(0, 6).toUpperCase()}</p>
+        </div>
+        <div style="text-align:right">
+          <p class="ticket-eyebrow">Table</p>
+          <p class="details-big">${escapeHtml(order.table.label)}</p>
+        </div>
+      </div>
+
+      <div class="details-row"><span class="details-label">Date</span><span>${new Date(order.createdAt).toLocaleString()}</span></div>
+      <div class="details-row"><span class="details-label">Server</span><span>${escapeHtml(order.waiter.name)}</span></div>
+      <div class="details-row"><span class="details-label">Payment method</span><span>${escapeHtml(methodLabel)}</span></div>
+      ${order.isPaid && order.cashier ? `<div class="details-row"><span class="details-label">Cashier</span><span>${escapeHtml(order.cashier.name)}</span></div>` : ''}
+
+      <div class="details-divider"></div>
+
+      ${order.items
+        .map((it) => {
+          const summary = itemCustomizationSummary(it);
+          return `
+          <div class="details-item">
+            <div class="details-item-top">
+              <span>${it.quantity}× ${escapeHtml(it.menuItem.name)}</span>
+              <span class="mono">$${lineTotal(it).toFixed(2)}</span>
+            </div>
+            ${summary ? `<div class="details-item-custom">${escapeHtml(summary)}</div>` : ''}
+          </div>`;
+        })
+        .join('')}
+
+      <div class="details-divider"></div>
+
+      <div class="details-row details-total">
+        <span>Total</span>
+        <span class="mono">$${total.toFixed(2)}</span>
+      </div>
+    `;
+
+    receiptPrintBtn.onclick = () => printReceiptFor(order, methodLabel, total);
+
+    receiptModal.classList.remove('hidden');
+  }
+
+  receiptCloseBtn.addEventListener('click', () => receiptModal.classList.add('hidden'));
+
+  function printReceiptFor(order, methodLabel, total) {
+    const itemsHtml = order.items
+      .map((it) => `<div class="receipt-line"><span>${it.quantity}× ${escapeHtml(it.menuItem.name)}</span><span>$${lineTotal(it).toFixed(2)}</span></div>`)
+      .join('');
+
+    receiptPrintArea.innerHTML = `
+      <div class="receipt-center">
+        <div><strong>RECEIPT</strong></div>
+        <div>Table ${escapeHtml(order.table.label)}</div>
+        <div>${new Date(order.createdAt).toLocaleString()}</div>
+      </div>
+      <div class="receipt-divider"></div>
+      ${itemsHtml}
+      <div class="receipt-divider"></div>
+      <div class="receipt-line receipt-total"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
+      <div class="receipt-line"><span>Server</span><span>${escapeHtml(order.waiter.name)}</span></div>
+      <div class="receipt-line"><span>Payment</span><span>${escapeHtml(methodLabel)}</span></div>
+      <div class="receipt-divider"></div>
+      <div class="receipt-center">Thank you!</div>
+    `;
+    window.print();
+  }
+
+  // ---------------- Payment screenshot lightbox ----------------
+  function openScreenshotLightbox(url) {
+    lightboxImage.classList.remove('hidden');
+    lightboxFallback.classList.add('hidden');
+    lightboxImage.src = url;
+    screenshotLightbox.classList.remove('hidden');
+  }
+  // A screenshot uploaded before the app started using a persistent
+  // volume (or on a host with no volume at all) 404s here — show a clear
+  // message instead of a broken-image icon.
+  lightboxImage.addEventListener('error', () => {
+    lightboxImage.classList.add('hidden');
+    lightboxFallback.classList.remove('hidden');
+  });
+  lightboxCloseBtn.addEventListener('click', () => screenshotLightbox.classList.add('hidden'));
+  screenshotLightbox.addEventListener('click', (e) => {
+    if (e.target === screenshotLightbox) screenshotLightbox.classList.add('hidden');
+  });
 
   function openVoidModal(orderId) {
     pendingVoidOrderId = orderId;
@@ -818,7 +1205,7 @@
     });
   }
 
-  let editingStaffId = null;
+  let editingStaffId = null; let editingStaffIsActive = true;
   const editStaffModal = document.getElementById('editStaffModal');
   const editStaffForm = document.getElementById('editStaffForm');
   const editStaffError = document.getElementById('editStaffError');
@@ -827,7 +1214,7 @@
   function openEditStaffModal(id) {
     const staffUser = staffList.find((u) => u.id === id);
     if (!staffUser) return;
-    editingStaffId = id;
+    editingStaffId = id; editingStaffIsActive = staffUser.isActive;
     editStaffError.textContent = '';
     document.getElementById('editStaffName').value = staffUser.name;
     document.getElementById('editStaffEmail').value = staffUser.email;
@@ -848,7 +1235,7 @@
     }
 
     try {
-      await api(`/api/users/${editingStaffId}`, { method: 'PATCH', body: JSON.stringify({ name, email }) });
+      await api(`/api/users/${editingStaffId}`, { method: 'PATCH', body: JSON.stringify({ name, email, isActive: editingStaffIsActive }) });
       editStaffModal.classList.add('hidden');
       showToast('Account updated');
       loadStaff();
@@ -1170,6 +1557,86 @@
       loadStock();
     });
 
+    // A table's order just finished across every station it needed and
+    // is now sitting in the Cashier's Open Bills — surfaced here too so a
+    // manager watching this dashboard sees it without switching screens.
+    socket.on('table_ready_for_checkout', ({ tableLabel }) => {
+      showToast(`Table ${tableLabel} ready for checkout`);
+    });
+
+    // ---- Real-time Orders tab sync (no manual refresh needed) ----
+    // Both handlers only touch currentOrders/re-render when the Orders
+    // tab is actually showing "today" — a live event is always about
+    // something happening right now, so it has nothing to add to a past
+    // day the manager might currently be reviewing.
+    socket.off('new_order').on('new_order', (order) => {
+      if (currentDate !== todayISO()) return;
+      if (currentOrders.some((o) => o.id === order.id)) return; // already have it
+      currentOrders.unshift(order);
+      renderOrdersTable();
+
+      // Patch the two headline Overview numbers instantly off the same
+      // event, rather than re-fetching /api/reports/daily — that round
+      // trip was the source of the delay and the brief "No items ordered
+      // on this day" empty-state flicker while it was in flight. The
+      // other cards (Voided, Logged Revenue, Reconciled, Blocked
+      // Attempts) are audit/reconciliation figures — deliberately left
+      // untouched here rather than approximated, and simply catch up on
+      // the next real loadOverview() (date change, refresh, or reopening
+      // the Overview tab).
+      if (lastOverviewReport) {
+        const orderTotal = order.items.reduce((sum, it) => sum + lineTotal(it), 0);
+        lastOverviewReport.summary.ordersPlaced += 1;
+        lastOverviewReport.summary.liveRevenue += orderTotal;
+        renderStatGrid(lastOverviewReport);
+      }
+    });
+
+    socket.off('order_voided').on('order_voided', ({ orderId }) => {
+      if (currentDate !== todayISO()) return;
+      const order = currentOrders.find((o) => o.id === orderId);
+      if (order) {
+        order.status = 'VOIDED';
+        order.isVoided = true;
+        renderOrdersTable();
+      }
+
+      // Same instant-patch approach as new_order above — only when we
+      // actually have this order's items on hand (it's today's order and
+      // the Orders tab has already loaded it) do we know its revenue to
+      // subtract; otherwise this is skipped and picked up by the next
+      // real refresh rather than guessed at.
+      if (lastOverviewReport && order) {
+        const orderTotal = order.items.reduce((sum, it) => sum + lineTotal(it), 0);
+        lastOverviewReport.summary.ordersVoided += 1;
+        lastOverviewReport.summary.liveRevenue -= orderTotal;
+        renderStatGrid(lastOverviewReport);
+      }
+    });
+
+    socket.off('status_updated').on('status_updated', ({ orderId, kitchenStatus, barStatus, status }) => {
+      if (currentDate !== todayISO()) return;
+      const order = currentOrders.find((o) => o.id === orderId);
+      if (!order) return;
+      order.kitchenStatus = kitchenStatus;
+      order.barStatus = barStatus;
+      order.status = status;
+      renderOrdersTable();
+    });
+
+    // A bill was paid at the Cashier — refresh the Orders table's paid
+    // state and the Overview's revenue numbers without a reload.
+    socket.off('orders_paid').on('orders_paid', () => {
+      if (currentDate !== todayISO()) return;
+      loadOrders();
+      loadOverview();
+    });
+
+    // Menu edited (possibly from another manager's screen)
+    socket.off('menu_changed').on('menu_changed', () => {
+      loadMenuItemsAdmin();
+    });
+
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
     });
@@ -1180,6 +1647,7 @@
     try {
       menuItemsAdmin = await api('/api/menu-items');
       renderMenuItemsTable();
+      loadCategoriesFlat(true).then(renderCategoriesTree);
       rebuildItemCategoryMap();
       renderItemsTable(lastItemsOrdered); // re-apply category tags/filter now the map is fresh
     } catch (err) {
@@ -1187,8 +1655,8 @@
     }
   }
 
-  async function loadCategoriesFlat() {
-    if (categoriesFlat.length > 0) return; // cached — categories rarely change mid-shift
+  async function loadCategoriesFlat(force) {
+    if (categoriesFlat.length > 0 && !force) return; // cached unless categories just changed
     try {
       categoriesFlat = await api('/api/menu-items/categories');
     } catch (err) {
@@ -1196,13 +1664,137 @@
     }
   }
 
+  // ---------------- Categories panel ----------------
+  // Add / rename / delete the sub-categories under Drinks, Meals and
+  // Snacks (those three are fixed — they route tickets to the Barista or
+  // Chef; see menuItemController.js). The server enforces every rule;
+  // the disabled buttons here just explain them up front.
+  const categoriesTree = document.getElementById('categoriesTree');
+  const ROOT_ORDER = ['Drinks', 'Meals', 'Snacks'];
+  const ROOT_LABELS = { Drinks: '🥤 Drinks → Barista', Meals: '🍽 Meals → Chef', Snacks: '🍿 Snacks → Chef' };
+
+  function categoryCountLabel(c) {
+    if (c.childCount > 0) return `${c.childCount} sub-categor${c.childCount === 1 ? 'y' : 'ies'}`;
+    return `${c.itemCount} item${c.itemCount === 1 ? '' : 's'}`;
+  }
+
+  function rootRank(c) {
+    const i = ROOT_ORDER.indexOf(c.name);
+    return i === -1 ? ROOT_ORDER.length : i;
+  }
+
+  function renderCategoriesTree() {
+    if (!categoriesTree) return;
+    const childrenOf = (id) => categoriesFlat.filter((c) => c.parentId === id).sort((a, b) => a.name.localeCompare(b.name));
+    const roots = categoriesFlat.filter((c) => !c.parentId).sort((a, b) => rootRank(a) - rootRank(b) || a.name.localeCompare(b.name));
+
+    const row = (c) => {
+      const canAddSub = c.depth < 3 && c.itemCount === 0;
+      const deleteBlock = c.childCount > 0 ? 'Delete its sub-categories first' : c.itemCount > 0 ? 'Move or delete its items first' : '';
+      const addBtn = c.depth < 3
+        ? `<button type="button" class="small-btn view cat-add" data-id="${c.id}" ${canAddSub ? '' : 'disabled title="It has items directly in it — move them into a sub-category first"'}>＋ Sub</button>`
+        : '';
+      return `
+        <div class="cat-row depth-${c.depth}" data-id="${c.id}">
+          <div class="cat-row-info">
+            <span class="cat-row-name">${escapeHtml(c.name)}</span>
+            <span class="cat-row-count">${categoryCountLabel(c)}</span>
+          </div>
+          <div class="cat-row-actions">
+            ${addBtn}
+            <button type="button" class="small-btn view cat-rename" data-id="${c.id}">Rename</button>
+            <button type="button" class="small-btn void cat-delete" data-id="${c.id}" ${deleteBlock ? `disabled title="${deleteBlock}"` : ''}>Delete</button>
+          </div>
+        </div>
+        ${childrenOf(c.id).map(row).join('')}`;
+    };
+
+    categoriesTree.innerHTML = roots
+      .map(
+        (r) => `
+        <div class="cat-root">
+          <div class="cat-root-header">
+            <span class="cat-root-name">${escapeHtml(ROOT_LABELS[r.name] || r.name)}</span>
+            <div class="cat-row-actions">
+              <button type="button" class="small-btn view cat-add" data-id="${r.id}" ${r.itemCount > 0 ? 'disabled title="It has items directly in it"' : ''}>＋ Add category</button>
+              ${r.canDelete ? `<button type="button" class="small-btn void cat-delete" data-id="${r.id}" ${r.itemCount > 0 || r.childCount > 0 ? `disabled title="Delete or move its ${r.itemCount > 0 ? 'items' : 'categories'} first"` : ''}>Delete</button>` : ''}
+            </div>
+          </div>
+          ${childrenOf(r.id).map(row).join('') || '<p class="cat-empty">No categories yet.</p>'}
+        </div>`
+      )
+      .join('');
+
+    categoriesTree.querySelectorAll('.cat-add:not(:disabled)').forEach((btn) => btn.addEventListener('click', () => addCategory(btn.dataset.id)));
+    categoriesTree.querySelectorAll('.cat-rename').forEach((btn) => btn.addEventListener('click', () => renameCategory(btn.dataset.id)));
+    categoriesTree.querySelectorAll('.cat-delete:not(:disabled)').forEach((btn) => btn.addEventListener('click', () => deleteCategory(btn.dataset.id)));
+  }
+
+  async function afterCategoryChange(message) {
+    showToast(message);
+    await loadCategoriesFlat(true);
+    renderCategoriesTree();
+    loadMenuItemsAdmin(); // item paths change when a category is renamed
+  }
+
+  async function addCategory(parentId) {
+    const parent = categoriesFlat.find((c) => c.id === parentId);
+    const name = prompt(`New category under "${parent ? parent.path : ''}":`);
+    if (name === null || !name.trim()) return;
+    try {
+      await api('/api/menu-items/categories', { method: 'POST', body: JSON.stringify({ name, parentId }) });
+      await afterCategoryChange(`Added "${name.trim()}"`);
+    } catch (err) {
+      showToast(err.message || 'Failed to add category', true);
+    }
+  }
+
+  async function renameCategory(id) {
+    const cat = categoriesFlat.find((c) => c.id === id);
+    if (!cat) return;
+    const name = prompt(`Rename "${cat.path}" to:`, cat.name);
+    if (name === null || !name.trim() || name.trim() === cat.name) return;
+    try {
+      await api(`/api/menu-items/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+      await afterCategoryChange(`Renamed to "${name.trim()}"`);
+    } catch (err) {
+      showToast(err.message || 'Failed to rename category', true);
+    }
+  }
+
+  async function deleteCategory(id) {
+    const cat = categoriesFlat.find((c) => c.id === id);
+    if (!cat) return;
+    const message = cat.parentId
+      ? `Delete the category "${cat.path}"? It's empty, so no menu items are affected.`
+      : `Delete the whole "${cat.name}" section? Its tab disappears from the Waiter and Cashier screens, and it can't be added back from here (new food can go under Meals).`;
+    if (!confirm(message)) return;
+    try {
+      const res = await fetch(API + `/api/menu-items/categories/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Delete failed (${res.status})`);
+      }
+      await afterCategoryChange(`Deleted "${cat.name}"`);
+    } catch (err) {
+      showToast(err.message || 'Failed to delete category', true);
+    }
+  }
+
   function renderMenuItemsTable() {
     let filtered =
       menuCategoryFilter === 'all' ? menuItemsAdmin : menuItemsAdmin.filter((m) => categoryBucket(m) === menuCategoryFilter);
 
+    if (menuSearchQuery) {
+      filtered = filtered.filter(
+        (m) => m.name.toLowerCase().includes(menuSearchQuery) || m.categoryPath.toLowerCase().includes(menuSearchQuery)
+      );
+    }
+
     if (filtered.length === 0) {
-      const emptyMsg =
-        menuCategoryFilter === 'all'
+      const emptyMsg = menuSearchQuery
+        ? `No items match "${escapeHtml(menuSearchInput.value.trim())}".`
+        : menuCategoryFilter === 'all'
           ? 'No menu items yet — add one to get started.'
           : `No ${menuCategoryFilter === 'drinks' ? 'drink' : 'food'} items on the menu.`;
       menuItemsTable.innerHTML = `<table class="grid"><tbody><tr class="empty-row"><td>${emptyMsg}</td></tr></tbody></table>`;
@@ -1361,6 +1953,28 @@
     menuItemImagePreview.style.display = 'none';
   });
 
+  // Removable ingredients are typed as one list. Accept every separator
+  // staff actually type: the English comma, the Amharic keyboard's
+  // Ethiopic comma "፣" (and "፤"), Arabic/full-width commas, ";" and new
+  // lines — splitting on "," alone saved "ሽንኩርት፣ ቃሪያ" as ONE ingredient.
+  function splitIngredients(text) {
+    const seen = new Set();
+    return String(text || '')
+      .split(/[,،，፣፤;\n]+/)
+      .map((s) => s.trim())
+      .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
+  }
+
+  // Enter in this field starts the next ingredient instead of submitting
+  // the whole form (which is what made it seem to take only one).
+  document.getElementById('menuItemIngredients').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    const input = e.target;
+    const value = input.value.replace(/[\s,،，፣፤;]+$/, '');
+    if (value) input.value = `${value}, `;
+  });
+
   function collectExtraRows() {
     return Array.from(menuItemExtrasList.querySelectorAll('.extra-row'))
       .map((row) => ({
@@ -1376,8 +1990,15 @@
     menuItemForm.reset();
     menuItemExtrasList.innerHTML = '';
 
-    await loadCategoriesFlat();
-    menuItemCategorySelect.innerHTML = categoriesFlat.map((c) => `<option value="${c.id}">${escapeHtml(c.path)}</option>`).join('');
+    await loadCategoriesFlat(true);
+    // Only the deepest level can hold items (the ordering screens don't
+    // show items of a category that has sub-categories)
+    const currentCategoryId = editingMenuItemId ? (menuItemsAdmin.find((m) => m.id === editingMenuItemId) || {}).categoryId : null;
+    menuItemCategorySelect.innerHTML = categoriesFlat
+      .filter((c) => c.childCount === 0 || c.id === currentCategoryId)
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map((c) => `<option value="${c.id}">${escapeHtml(c.path)}</option>`)
+      .join('');
 
     menuItemImageUrlInput.value = '';
     menuItemImagePreview.src = '';
@@ -1402,8 +2023,10 @@
       document.querySelectorAll('.temp-opt').forEach((cb) => {
         cb.checked = Array.isArray(item.temperatureOptions) && item.temperatureOptions.includes(cb.value);
       });
+      // Re-split on load too, so an ingredient list saved before this fix
+      // as one long entry ("ሽንኩርት፣ ቃሪያ") shows — and re-saves — as two.
       document.getElementById('menuItemIngredients').value = Array.isArray(item.customizableIngredients)
-        ? item.customizableIngredients.join(', ')
+        ? splitIngredients(item.customizableIngredients.join(', ')).join(', ')
         : '';
       const extras = Array.isArray(item.extraOptions) ? item.extraOptions : [];
       extras.forEach((e) => addExtraRow(e.name, e.price));
@@ -1433,11 +2056,7 @@
     const isFeatured = document.getElementById('menuItemFeatured').checked;
     const hasTemperatureOption = menuItemHasTempCheckbox.checked;
     const temperatureOptions = Array.from(document.querySelectorAll('.temp-opt:checked')).map((cb) => cb.value);
-    const customizableIngredients = document
-      .getElementById('menuItemIngredients')
-      .value.split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const customizableIngredients = splitIngredients(document.getElementById('menuItemIngredients').value);
     const extraOptions = collectExtraRows();
 
     if (!name) {
@@ -1491,7 +2110,16 @@
     dateInput.value = currentDate;
     connectSocket();
     loadStock();
-    loadMenuItemsAdmin(); // also builds the category maps the Items panel needs
+    // Awaited on its own, BEFORE loadItemsPanel() — it builds
+    // itemCategoryMap/itemMidCategoryMap (see rebuildItemCategoryMap())
+    // that the Items Ordered table's category filter reads. Firing it
+    // in parallel inside the Promise.all below (as this used to do) was
+    // a real race: whichever request happened to resolve first won, so
+    // clicking "Drinks" or "Food" before this fetch finished silently
+    // matched nothing — every item's category lookup returned undefined
+    // — while "All" always looked fine since it skips the lookup
+    // entirely. Awaiting it here first removes the race outright.
+    await loadMenuItemsAdmin();
     await Promise.all([loadOverview(), loadOrders(), loadItemsPanel()]);
   }
 
@@ -1500,8 +2128,9 @@
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_admin_token');
       localStorage.removeItem('kds_admin_user');
-      loginScreen.classList.remove('hidden');
-      appScreen.classList.add('hidden');
+      goToLogin();
     });
+  } else {
+    goToLogin();
   }
 })();

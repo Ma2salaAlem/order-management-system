@@ -1,121 +1,141 @@
 const prisma = require('../prisma/client');
+const { getIO } = require('../socket');
+const { addisDayStart } = require('./orderController');
 
-const ORDER_INCLUDE = {
-  items: { include: { menuItem: true } },
+const VALID_PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'TELEBIRR', 'CBE', 'BOA'];
+
+// Shared shape the Cashier frontend needs for both the Open Bills list
+// and Payment History: enough to render the bill, print a receipt, and
+// (for history) show who paid and how.
+const ORDER_WITH_BILL_DETAILS = {
   table: true,
-  waiter: true,
-  cashier: true,
+  waiter: { select: { id: true, name: true } },
+  cashier: { select: { id: true, name: true } },
+  items: { include: { menuItem: { select: { name: true } } } },
 };
 
-// GET /api/payments/unpaid — every COMPLETED, non-voided, unpaid order,
-// regardless of date. The Cashier Dashboard groups these client-side by
-// table to show which tables have an open bill right now. Deliberately
-// not date-filtered: a table's earlier-in-the-day order can still be
-// sitting unpaid when the cashier gets to it.
-async function listUnpaidOrders(req, res) {
+// GET /api/payments/unpaid?date=YYYY-MM-DD — cashier or manager
+// Completed, non-voided, not-yet-paid orders. Without a date filter this
+// shows every unpaid bill regardless of age (unchanged default behavior).
+// With ?date=, it's cumulative — every unpaid bill created ON OR BEFORE
+// that date's end-of-day in Addis Ababa — so a cashier can filter back to
+// an earlier date and still see any older bill that's still unpaid,
+// rather than only that single day's completions.
+async function listUnpaid(req, res) {
   try {
+    const where = { status: 'COMPLETED', isVoided: false, isPaid: false };
+
+    const dateParam = req.query.date;
+    if (dateParam) {
+      const dayStart = addisDayStart(dateParam);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      where.createdAt = { lt: dayEnd };
+    }
+
     const orders = await prisma.order.findMany({
-      where: { status: 'COMPLETED', isVoided: false, isPaid: false },
-      include: ORDER_INCLUDE,
+      where,
+      include: ORDER_WITH_BILL_DETAILS,
       orderBy: { createdAt: 'asc' },
     });
-    return res.json(orders);
+    res.json(orders);
   } catch (err) {
-    console.error('listUnpaidOrders error:', err);
-    return res.status(500).json({ error: 'Failed to fetch unpaid orders' });
+    console.error('listUnpaid error:', err);
+    res.status(500).json({ error: 'Failed to fetch unpaid orders' });
   }
 }
 
-// GET /api/payments/history?date=YYYY-MM-DD — paid orders for a given day
-// (defaults to today), for the Cashier Dashboard's own reference/reprint list.
-async function listPaymentHistory(req, res) {
-  try {
-    const dateParam = req.query.date;
-    const dayStart = dateParam ? new Date(`${dateParam}T00:00:00.000Z`) : startOfToday();
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-    const orders = await prisma.order.findMany({
-      where: { isPaid: true, paidAt: { gte: dayStart, lt: dayEnd } },
-      include: ORDER_INCLUDE,
-      orderBy: { paidAt: 'desc' },
-    });
-    return res.json(orders);
-  } catch (err) {
-    console.error('listPaymentHistory error:', err);
-    return res.status(500).json({ error: 'Failed to fetch payment history' });
-  }
-}
-
-const ALLOWED_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'TELEBIRR', 'CBE', 'BOA'];
-
-// POST /api/payments — multipart/form-data. Fields: orderIds (JSON string
-// array), paymentMethod, and an optional "screenshot" image file — the
-// upload middleware (see routes/payments.js) parses the file into
-// req.file and everything else lands in req.body as plain strings.
-async function payOrders(req, res) {
-  const { paymentMethod } = req.body;
-  const cashierId = req.user.id;
-
+// POST /api/payments — cashier or manager
+// multipart/form-data: orderIds (JSON-stringified array of order ids),
+// paymentMethod, and an optional screenshot file. All orders in the
+// batch (a table's grouped bill) get marked paid together, with the
+// same screenshot proof attached to each.
+async function recordPayment(req, res) {
   let orderIds;
   try {
-    orderIds = JSON.parse(req.body.orderIds);
-  } catch (e) {
-    return res.status(400).json({ error: 'orderIds must be a JSON-encoded array' });
+    orderIds = JSON.parse(req.body.orderIds || '[]');
+  } catch {
+    return res.status(400).json({ error: 'orderIds must be a JSON-encoded array of order ids' });
   }
-
   if (!Array.isArray(orderIds) || orderIds.length === 0) {
     return res.status(400).json({ error: 'orderIds must be a non-empty array' });
   }
-  if (!ALLOWED_METHODS.includes(paymentMethod)) {
-    return res.status(400).json({ error: `paymentMethod must be one of ${ALLOWED_METHODS.join(', ')}` });
+
+  const { paymentMethod } = req.body;
+  if (!VALID_PAYMENT_METHODS.includes(paymentMethod)) {
+    return res.status(400).json({ error: `paymentMethod must be one of ${VALID_PAYMENT_METHODS.join(', ')}` });
   }
+
+  const paymentScreenshotUrl = req.file ? `/uploads/payment-screenshots/${req.file.filename}` : null;
 
   try {
     const orders = await prisma.order.findMany({ where: { id: { in: orderIds } } });
     if (orders.length !== orderIds.length) {
-      return res.status(400).json({ error: 'One or more orderIds are invalid' });
+      return res.status(404).json({ error: 'One or more orders were not found' });
     }
-    const notPayable = orders.find((o) => o.isVoided || o.status !== 'COMPLETED' || o.isPaid);
+    const notPayable = orders.find((o) => o.status !== 'COMPLETED' || o.isVoided || o.isPaid);
     if (notPayable) {
       return res.status(409).json({
-        error: `Order #${notPayable.id.slice(0, 6).toUpperCase()} can't be paid — it's ${notPayable.isPaid ? 'already paid' : notPayable.isVoided ? 'voided' : `still ${notPayable.status}`}`,
+        error: `Order #${notPayable.id.slice(0, 6).toUpperCase()} is not payable (must be completed, not voided, and not already paid)`,
       });
     }
-
-    const paidAt = new Date();
-    const screenshotUrl = req.file ? `/uploads/payment-screenshots/${req.file.filename}` : null;
 
     await prisma.order.updateMany({
       where: { id: { in: orderIds } },
       data: {
         isPaid: true,
-        paidAt,
+        paidAt: new Date(),
         paymentMethod,
-        cashierId,
-        ...(screenshotUrl ? { paymentScreenshotUrl: screenshotUrl } : {}),
+        cashierId: req.user.id,
+        paymentScreenshotUrl,
       },
     });
 
-    const paid = await prisma.order.findMany({
+    const paidOrders = await prisma.order.findMany({
       where: { id: { in: orderIds } },
-      include: ORDER_INCLUDE,
+      include: ORDER_WITH_BILL_DETAILS,
     });
 
-    return res.status(200).json(paid);
+    // Other cashier screens drop these from Open Bills, and the Manager
+    // Dashboard's orders/revenue refresh — without anyone reloading.
+    getIO().to('cashier_channel').to('manager_channel').emit('orders_paid', { orderIds });
+
+    res.json(paidOrders);
   } catch (err) {
-    console.error('payOrders error:', err);
-    return res.status(500).json({ error: 'Failed to record payment' });
+    console.error('recordPayment error:', err);
+    res.status(500).json({ error: 'Failed to record payment' });
   }
 }
 
-function startOfToday() {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+// GET /api/payments/history?date=YYYY-MM-DD[&waiter=<waiterId>] — cashier or manager
+// Defaults to "today" in Addis Ababa when no date is given, same
+// day-boundary logic orderController.js uses for its own daily views.
+// Optional ?waiter= narrows it to one waiter's orders. The Cashier screen
+// filters client-side (it needs the full day to build its waiter
+// dropdown), so this is for callers that only want one waiter's slice.
+async function paymentHistory(req, res) {
+  try {
+    const dayStart = addisDayStart(req.query.date);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const where = { isPaid: true, paidAt: { gte: dayStart, lt: dayEnd } };
+    const waiterParam = req.query.waiter;
+    if (waiterParam && waiterParam !== 'all') {
+      if (typeof waiterParam !== 'string') {
+        return res.status(400).json({ error: 'waiter must be a single waiter id' });
+      }
+      where.waiterId = waiterParam;
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: ORDER_WITH_BILL_DETAILS,
+      orderBy: { paidAt: 'desc' },
+    });
+    res.json(orders);
+  } catch (err) {
+    console.error('paymentHistory error:', err);
+    res.status(500).json({ error: 'Failed to fetch payment history' });
+  }
 }
 
-module.exports = {
-  listUnpaidOrders,
-  listPaymentHistory,
-  payOrders,
-};
+module.exports = { listUnpaid, recordPayment, paymentHistory };

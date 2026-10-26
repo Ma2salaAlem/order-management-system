@@ -1,0 +1,43 @@
+/* Unified sign-in page — everything else (card, brand, inputs, button,
+   error, hint) comes from the shared login styles in /theme.css. */
+
+/* Wraps onto a second row when the labels don't fit (Amharic names like
+   "ገንዘብ ተቀባይ" are much longer) instead of cutting them off. */
+.role-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  margin: 4px 0 6px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+}
+
+.role-option {
+  flex: 1 1 auto;
+  padding: 9px 8px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.role-option:hover {
+  color: var(--paper);
+  background: var(--glass-fill-hover);
+}
+
+.role-option.active {
+  background: var(--accent-glass);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(255, 90, 54, 0.35);
+}
+
+.role-option:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 1px;
+}

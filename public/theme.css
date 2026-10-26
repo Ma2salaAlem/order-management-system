@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:wght@700;800&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 :root {
   --ink: #0e1116;
@@ -18,9 +18,24 @@
   --text-main: #f3ecd8;
   --text-muted: #8791a0;
 
-  --font-display: 'Bebas Neue', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Bebas Neue', 'Noto Sans Ethiopic', sans-serif;
+  --font-body: 'Inter', 'Noto Sans Ethiopic', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Noto Sans Ethiopic', monospace;
+
+  --glass-fill: rgba(18, 24, 38, 0.55);
+  --glass-fill-light: rgba(255, 255, 255, 0.08);
+  --glass-fill-hover: rgba(255, 255, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-hover: rgba(255, 255, 255, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-blur-sm: blur(12px) saturate(180%);
+  --glass-radius: 14px;
+  --accent-glass: rgba(255, 90, 60, 0.75);
+
+  --icon-color: rgba(255, 255, 255, 0.85);
+  --icon-color-hover: #ffffff;
+  --icon-size: 20px;
 }
 
 * {
@@ -30,10 +45,30 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--ink);
+  min-height: 100vh;
+  background-color: var(--ink);
+  background-image: url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1920&q=80');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--text-main);
   font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.45);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 button {
@@ -52,6 +87,23 @@ input {
 
 .hidden {
   display: none !important;
+}
+
+/* Shown by the Chef/Barista displays while the server can't be reached —
+   new orders can't arrive, so it has to be impossible to miss. */
+.connection-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  padding: 14px 16px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .mono {
@@ -78,7 +130,32 @@ input {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Shared login screen ---- */
+/* ---- Header icon buttons — shared across every dashboard ----
+   Icons are inline SVGs using stroke="currentColor" on their paths, so
+   controlling color here is enough to theme every icon consistently;
+   .icon-btn's own background/border/blur (glass look) is still set
+   per-page since button sizes differ slightly between dashboards. */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-color);
+  transition: color 0.2s ease, filter 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: var(--icon-color-hover);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.45));
+}
+
+.icon-btn svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ---- Shared login screen (Liquid Glass) ---- */
 .login-screen {
   min-height: 100vh;
   display: flex;
@@ -90,9 +167,12 @@ input {
 .login-card {
   width: 100%;
   max-width: 360px;
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
-  border-radius: 16px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
   padding: 28px 24px;
 }
 
@@ -110,6 +190,214 @@ input {
   font-size: 13px;
 }
 
+/* ================= Ebony brand =================
+   The restaurant's wordmark — "Ebony" in a gold serif with the screen's
+   name underneath (e.g. "— CASHIER —"). Used centered in every screen's
+   header (.brand-header) and, larger, on every sign-in card. */
+.brand {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+.brand-name {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: 0.01em;
+  padding: 0 2px 2px; /* keeps the gradient from clipping the descender of "y" */
+  background: linear-gradient(180deg, #fbe9b2 0%, #e2b866 42%, #b8863a 72%, #8a5f22 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.brand-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(243, 236, 216, 0.78);
+  padding-left: 0.34em; /* balances the trailing letter-spacing so it centers */
+}
+
+/* thin gold rules either side of the screen name */
+.brand-role::before,
+.brand-role::after {
+  content: '';
+  width: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d4a756);
+}
+
+.brand-role::after {
+  background: linear-gradient(90deg, #d4a756, transparent);
+}
+
+.login-card .brand {
+  display: flex;
+  margin: 0 auto 6px;
+}
+
+.login-card .brand-name {
+  font-size: 52px;
+}
+
+.login-card .brand-role {
+  font-size: 11px;
+}
+
+.login-card .brand + p.subtitle {
+  text-align: center;
+}
+
+/* ================= Phones & tablets: no auto-zoom =================
+   iPhones zoom the whole page in when you tap a text box whose text is
+   smaller than 16px — and it stays zoomed (sign-in fields were 15px, the
+   date boxes ~13px). 16px on touch screens stops that. The :not(#_)
+   only raises priority over the per-screen input styles. */
+@media (pointer: coarse) {
+  input:not(#_),
+  select:not(#_),
+  textarea:not(#_) {
+    font-size: 16px !important;
+  }
+}
+
+/* ================= Language switch (EN | አማ) =================
+   Added to every header's right side and every sign-in card by i18n.js */
+.lang-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(212, 167, 86, 0.55);
+}
+
+.lang-toggle button {
+  min-width: 40px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: rgba(243, 236, 216, 0.7);
+  font-family: 'Inter', 'Noto Sans Ethiopic', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lang-toggle button.active {
+  background: linear-gradient(180deg, #f0cf85, #b8863a);
+  color: #1a1206;
+}
+
+/* Phones: headers are tight — a slimmer switch, and the header buttons
+   stay on one line next to the logo instead of wrapping underneath */
+@media (max-width: 700px) {
+  .brand-header .lang-toggle button {
+    min-width: 32px;
+    padding: 6px 7px;
+    font-size: 12px;
+  }
+
+  .brand-header > .brand-slot-right {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .brand-header > .brand-slot-right .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+.login-card {
+  position: relative;
+}
+
+.login-card > .lang-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+/* Ethiopic script reads better without the wide letter-spacing the
+   English uppercase labels use */
+.lang-am .brand-role {
+  letter-spacing: 0.08em;
+  padding-left: 0.08em;
+}
+
+/* Header layout: [left: date/status] [centered brand] [right: buttons] */
+.brand-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-header > .brand-slot-left {
+  justify-self: start;
+  min-width: 0;
+}
+
+.brand-header > .brand {
+  justify-self: center;
+}
+
+.brand-header > .brand-slot-right {
+  justify-self: end;
+}
+
+/* Phones: brand + buttons on the first row, the rest below */
+@media (max-width: 700px) {
+  .brand-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .brand-header > .brand {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: flex-start;
+  }
+
+  .brand-header > .brand-slot-right {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .brand-header > .brand-slot-left {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .brand-header .brand-name {
+    font-size: 30px;
+  }
+
+  .brand-header .brand-role {
+    font-size: 9px;
+  }
+
+  .brand-header .brand-role::before {
+    display: none;
+  }
+}
+
 .login-card label {
   display: block;
   font-size: 12px;
@@ -125,15 +413,19 @@ input {
   width: 100%;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
   font-size: 15px;
+  transition: all 0.2s ease;
 }
 
 .login-card input:focus {
-  outline: 2px solid var(--signal);
-  outline-offset: 1px;
+  outline: none;
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
 }
 
 .login-submit {
@@ -141,14 +433,23 @@ input {
   margin-top: 20px;
   padding: 14px;
   border-radius: 10px;
-  background: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-weight: 700;
   font-size: 15px;
+  transition: all 0.2s ease;
+}
+
+.login-submit:hover {
+  background: rgba(255, 90, 60, 0.9);
+  transform: translateY(-1px);
 }
 
 .login-submit:active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.98);
 }
 
 .login-error {
@@ -162,8 +463,10 @@ input {
   margin-top: 18px;
   padding: 12px;
   border-radius: 10px;
-  background: var(--surface);
-  border: 1px dashed var(--hairline);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px dashed var(--glass-border);
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.6;

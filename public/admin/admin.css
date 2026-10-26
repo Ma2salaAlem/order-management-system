@@ -7,13 +7,33 @@ body {
   top: 0;
   z-index: 20;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
   padding: 16px 24px;
-  background: var(--ink);
-  border-bottom: 1px solid var(--hairline);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.header-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .app-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header-top-row {
+    width: auto;
+  }
 }
 
 .header-left {
@@ -34,6 +54,7 @@ body {
 
 .header-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
@@ -50,25 +71,88 @@ body {
 }
 
 .date-input {
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 8px 10px;
   color: var(--text-main);
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
 }
 
 .icon-btn {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
+  border-radius: var(--glass-radius);
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
   font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .icon-btn:active {
   transform: scale(0.95);
+}
+
+.hamburger-btn {
+  font-size: 20px;
+}
+
+@media (min-width: 768px) {
+  .hamburger-btn {
+    display: none;
+  }
+  .mobile-nav-dropdown {
+    display: none !important;
+  }
+}
+
+.mobile-nav-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px 16px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.mobile-nav-item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-item.active {
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 .view-toggle {
@@ -77,17 +161,36 @@ body {
   padding: 16px 24px 0;
 }
 
+@media (max-width: 767px) {
+  .view-toggle {
+    display: none;
+  }
+}
+
 .toggle-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
   color: var(--text-muted);
   font-weight: 700;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .toggle-btn.active {
-  background: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
@@ -103,9 +206,12 @@ body {
 }
 
 .stat-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
   padding: 16px;
 }
 
@@ -126,6 +232,50 @@ body {
   margin: 0;
 }
 
+/* Clickable stat card (Orders Voided) — a real <button>, so reset the
+   browser's button look and keep it identical to the other cards. */
+button.stat-card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  position: relative;
+}
+
+.stat-card-btn:not(:disabled) {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.stat-card-btn:not(:disabled):hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-2px);
+}
+
+.stat-card-btn:focus-visible {
+  outline: 2px solid var(--wait);
+  outline-offset: 2px;
+}
+
+.stat-card-btn:disabled {
+  cursor: default;
+}
+
+.stat-card .card-hint {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.stat-card-btn:not(:disabled):hover .card-hint {
+  color: var(--paper);
+}
+
 .stat-card.warn .value {
   color: var(--wait);
 }
@@ -139,9 +289,12 @@ body {
 }
 
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
   padding: 18px;
   margin-bottom: 18px;
 }
@@ -151,6 +304,8 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .panel-title {
@@ -179,13 +334,13 @@ table.grid th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--glass-border);
   white-space: nowrap;
 }
 
 table.grid td {
   padding: 10px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--glass-border);
   color: var(--text-main);
   vertical-align: middle;
 }
@@ -222,9 +377,9 @@ table.grid tr:last-child td {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 .active-pill {
@@ -244,37 +399,53 @@ table.grid tr:last-child td {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
+  transition: all 0.2s ease;
 }
 
 .small-btn.void {
-  background: var(--danger);
+  background: rgba(255, 71, 87, 0.75);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
 .small-btn.void:disabled {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .small-btn.toggle-on {
-  background: var(--go);
+  background: rgba(51, 196, 140, 0.8);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--ink);
 }
 
 .small-btn.toggle-off {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 .primary-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.primary-btn:hover {
+  background: rgba(255, 90, 60, 0.9);
+  transform: translateY(-1px);
 }
 
 .primary-btn:active {
@@ -284,20 +455,38 @@ table.grid tr:last-child td {
 .secondary-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
   color: var(--text-main);
   font-weight: 700;
   font-size: 13px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+}
+
+.secondary-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .danger-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--danger);
+  background: rgba(255, 71, 87, 0.75);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover {
+  background: rgba(255, 71, 87, 0.9);
+  transform: translateY(-1px);
 }
 
 /* ---------------- Modal ---------------- */
@@ -305,6 +494,8 @@ table.grid tr:last-child td {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -315,8 +506,11 @@ table.grid tr:last-child td {
 .modal-card {
   width: 100%;
   max-width: 400px;
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   border-radius: 16px;
   padding: 24px;
 }
@@ -351,10 +545,20 @@ table.grid tr:last-child td {
   width: 100%;
   padding: 11px 13px;
   border-radius: 10px;
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
   font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.modal-card input:focus,
+.modal-card select:focus {
+  outline: none;
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
 }
 
 .field-hint {
@@ -376,6 +580,30 @@ table.grid tr:last-child td {
   margin-top: 18px;
 }
 
+/* ---- Tall forms (e.g. Add Menu Item) must fit the screen ----
+   The card had no height limit, so a long form grew past the screen and,
+   being centered, was cut off top and bottom with no way to scroll — the
+   Add Item / Cancel buttons were unreachable without zooming out. The
+   card now never exceeds the screen and scrolls inside itself, and its
+   buttons stay pinned to the bottom edge of the card. */
+.modal-card {
+  max-height: calc(100vh - 40px); /* 20px overlay padding top + bottom */
+  max-height: calc(100dvh - 40px); /* phones: excludes the browser bars */
+  overflow-y: auto;
+  overscroll-behavior: contain; /* scrolling the form doesn't scroll the page behind */
+}
+
+.modal-card .modal-actions {
+  position: sticky;
+  bottom: -24px; /* the card's bottom padding */
+  z-index: 2;
+  margin: 18px -24px -24px;
+  padding: 14px 24px 24px;
+  background: rgba(16, 20, 30, 0.97);
+  border-top: 1px solid var(--glass-border);
+  border-radius: 0 0 16px 16px;
+}
+
 .modal-actions button {
   flex: 1;
 }
@@ -385,7 +613,9 @@ table.grid tr:last-child td {
   top: 76px;
   right: 24px;
   z-index: 60;
-  background: var(--surface-raised);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--go);
   border-radius: 12px;
   padding: 12px 16px;
@@ -393,7 +623,7 @@ table.grid tr:last-child td {
   font-weight: 500;
   color: var(--paper);
   animation: toastIn 0.2s ease-out;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+  box-shadow: var(--glass-shadow);
 }
 
 .toast.error {
@@ -402,9 +632,9 @@ table.grid tr:last-child td {
 
 /* ---------------- Order details modal ---------------- */
 .small-btn.view {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-main);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
   margin-right: 6px;
 }
 
@@ -456,13 +686,13 @@ table.grid tr:last-child td {
 }
 
 .details-divider {
-  border-top: 1px dashed var(--hairline);
+  border-top: 1px dashed var(--glass-border);
   margin: 12px 0;
 }
 
 .details-item {
   padding: 8px 0;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .details-item:last-of-type {
@@ -493,6 +723,8 @@ table.grid tr:last-child td {
   padding: 12px 14px;
   border-radius: 12px;
   background: rgba(255, 71, 87, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--danger);
 }
 
@@ -503,12 +735,43 @@ table.grid tr:last-child td {
   font-size: 13px;
 }
 
-/* ---------------- Category filter (Drinks / Food) ---------------- */
-.panel-header-row {
-  flex-wrap: wrap;
-  gap: 10px;
+/* ---------------- Voided orders modal ---------------- */
+.voided-modal-card {
+  max-width: 560px;
 }
 
+.voided-order {
+  padding: 14px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+}
+
+.voided-order-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.voided-order-head .mono {
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.voided-order .void-info-box {
+  margin-top: 10px;
+}
+
+.voided-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 30px 0;
+}
+
+/* ---------------- Category filter (Drinks / Food) ---------------- */
 .category-filter-row {
   display: flex;
   gap: 6px;
@@ -517,21 +780,49 @@ table.grid tr:last-child td {
 .cat-filter-btn {
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
   font-size: 12px;
   font-weight: 700;
+  transition: all 0.2s ease;
 }
 
 .cat-filter-btn.active {
-  background: var(--signal);
-  border-color: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
 .cat-filter-btn:active {
   transform: scale(0.95);
+}
+
+.menu-search-input {
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-main);
+  font-size: 13px;
+  flex: 1 1 200px;
+  min-width: 160px;
+  max-width: 320px;
+  transition: all 0.2s ease;
+}
+
+.menu-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.menu-search-input:focus {
+  outline: none;
+  background: var(--glass-fill-hover);
+  border-color: var(--signal);
 }
 
 .category-tag {
@@ -543,17 +834,30 @@ table.grid tr:last-child td {
   padding: 1px 6px;
   border-radius: 5px;
   margin-right: 4px;
-  background: var(--surface);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 .total-row td {
-  border-top: 2px solid var(--hairline);
+  border-top: 3px double var(--signal);
   border-bottom: none;
-  padding-top: 12px;
-  color: var(--paper);
-  font-size: 14px;
+  padding-top: 14px;
+  padding-bottom: 12px;
+  background: rgba(255, 90, 54, 0.12);
+  color: var(--wait);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.total-row td:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.total-row td:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 /* ---------------- Category color tags (Alcohol / Non-Alcoholic / Hot / Juice) ---------------- */
@@ -580,8 +884,10 @@ table.grid tr:last-child td {
   width: 90px;
   padding: 7px 9px;
   border-radius: 8px;
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
   font-size: 13px;
   font-family: var(--font-mono);
@@ -594,14 +900,17 @@ table.grid tr:last-child td {
 }
 
 .small-btn.save-qty {
-  background: var(--go);
+  background: rgba(51, 196, 140, 0.8);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--ink);
 }
 
 .small-btn.edit-stock {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-main);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 /* ---------------- Stock -> menu item links ---------------- */
@@ -618,8 +927,8 @@ table.grid tr:last-child td {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
   color: var(--text-main);
   font-size: 12px;
 }
@@ -639,9 +948,9 @@ table.grid tr:last-child td {
 }
 
 .small-btn.link-item-btn {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-main);
-  border: 1px dashed var(--hairline);
+  border: 1px dashed var(--glass-border);
 }
 
 /* ---------------- Top Sellers toggle ---------------- */
@@ -657,8 +966,10 @@ table.grid tr:last-child td {
 }
 
 .top-sellers-btn.active {
-  background: var(--signal);
-  border-color: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
@@ -707,7 +1018,7 @@ table.grid tr:last-child td {
 }
 
 .modal-divider {
-  border-top: 1px dashed var(--hairline);
+  border-top: 1px dashed var(--glass-border);
   margin: 18px 0 4px;
 }
 
@@ -736,8 +1047,8 @@ table.grid tr:last-child td {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
   color: var(--danger);
   font-size: 14px;
   flex-shrink: 0;
@@ -751,7 +1062,10 @@ table.grid tr:last-child td {
 }
 
 .small-btn.price-save {
-  background: var(--go);
+  background: rgba(51, 196, 140, 0.8);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--ink);
 }
 
@@ -759,9 +1073,500 @@ table.grid tr:last-child td {
   width: 90px;
   padding: 7px 9px;
   border-radius: 8px;
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
   font-size: 13px;
   font-family: var(--font-mono);
+}
+
+/* ---------------- Order Details: receipt & screenshot actions ---------------- */
+.details-actions-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.details-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.details-action-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.details-action-btn:hover:not(:disabled) {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+.details-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------------- Payment screenshot lightbox ---------------- */
+.lightbox-card {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-card img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  display: block;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+}
+
+/* ---------------- Printable receipt (hidden on screen, shown only when printing) ---------------- */
+.receipt-print-area {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receiptPrintArea,
+  #receiptPrintArea * {
+    visibility: visible;
+  }
+  #receiptPrintArea {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 280px;
+    padding: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #000;
+  }
+  .receipt-center {
+    text-align: center;
+  }
+  .receipt-divider {
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
+  .receipt-line {
+    display: flex;
+    justify-content: space-between;
+  }
+  .receipt-total {
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  /* Sales Summary Report — a full readable page, not the narrow
+     receipt-style print above. Everything else on the dashboard (nav
+     tabs, headers, background photo/glass panels, action buttons) is
+     already hidden by the `body * { visibility: hidden }` reset above;
+     this just makes #itemsSummaryPrintArea itself the one visible thing. */
+  #itemsSummaryPrintArea,
+  #itemsSummaryPrintArea * {
+    visibility: visible;
+  }
+  #itemsSummaryPrintArea {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 24px;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    background: #fff;
+  }
+  #itemsSummaryPrintArea h1 {
+    font-size: 20px;
+    margin: 0 0 6px;
+  }
+  #itemsSummaryPrintArea .summary-print-meta {
+    font-size: 12px;
+    color: #444;
+    margin: 0 0 18px;
+  }
+  #itemsSummaryPrintArea table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  #itemsSummaryPrintArea th {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 2px solid #000;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  #itemsSummaryPrintArea td {
+    padding: 7px 6px;
+    border-bottom: 1px solid #ccc;
+  }
+  #itemsSummaryPrintArea .summary-print-total td {
+    border-top: 2px solid #000;
+    border-bottom: none;
+    padding-top: 10px;
+    font-size: 14px;
+  }
+  #itemsSummaryPrintArea .category-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: 1px solid #000;
+  }
+  #itemsSummaryPrintArea .category-type-badge.drinks {
+    background: #d1fae5;
+    color: #047857;
+    border-color: #047857;
+  }
+  #itemsSummaryPrintArea .category-type-badge.meals {
+    background: #ffe4d6;
+    color: #c2410c;
+    border-color: #c2410c;
+  }
+  #itemsSummaryPrintArea .category-type-badge.snacks {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #b45309;
+  }
+  #itemsSummaryPrintArea .category-type-badge.unknown {
+    background: #f1f1f1;
+    color: #555;
+    border-color: #999;
+  }
+}
+
+.lightbox-fallback {
+  padding: 40px 60px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+}
+
+/* ---------------- TOTAL row: Print Summary button ---------------- */
+.total-row-revenue-cell {
+  display: flex;
+  align-items: center;
+  /* space-between (not flex-end) — the $ amount sits at the natural
+     left edge of this cell, lining up under the REVENUE column header
+     and the amounts in the rows above it, while ONLY the print button
+     gets pushed out to the far right corner. flex-end previously
+     bundled both together at the right edge, disconnecting the total
+     figure from its own column. */
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.print-summary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--glass-fill-light);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--wait);
+  transition: all 0.2s ease;
+}
+
+.print-summary-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.print-summary-btn:hover {
+  background: var(--glass-fill-hover);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.print-summary-btn:active {
+  transform: scale(0.92);
+}
+
+/* ---------------- CATEGORY column badges (Items Ordered table) ---------------- */
+.category-type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.category-type-badge.drinks {
+  background: rgba(2, 44, 34, 0.5);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.category-type-badge.meals {
+  background: rgba(255, 90, 54, 0.18);
+  color: var(--signal);
+  border: 1px solid var(--signal);
+}
+
+.category-type-badge.snacks {
+  background: rgba(242, 184, 75, 0.18);
+  color: var(--wait);
+  border: 1px solid var(--wait);
+}
+
+.category-type-badge.unknown {
+  background: var(--glass-fill-light);
+  color: var(--text-muted);
+  border: 1px solid var(--glass-border);
+}
+
+/* ---------------- Categories panel (Menu tab) ---------------- */
+.categories-panel {
+  margin-bottom: 20px;
+}
+
+.categories-tree {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.cat-root {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+}
+
+.cat-root-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.cat-root-name {
+  font-weight: 800;
+  color: var(--paper);
+  font-size: 15px;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--glass-border);
+}
+
+/* Third level (e.g. Alcohol > Red Wine) is indented under its parent */
+.cat-row.depth-3 {
+  padding-left: 20px;
+}
+
+.cat-row-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cat-row-name {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.cat-row.depth-3 .cat-row-name::before {
+  content: '↳ ';
+  color: var(--text-muted);
+}
+
+.cat-row-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cat-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cat-row-actions .small-btn:disabled,
+.cat-root-header .small-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cat-empty {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .categories-tree {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------- Phones ----------------
+   The tables were wider than a phone screen, so Total / Status and the
+   Void / Edit / Deactivate buttons were off the right edge. Under 640px
+   each row of the Orders, Staff, Menu, Stock and Blocked tables becomes
+   a card: column name on the left, value on the right, action buttons
+   along the bottom. (admin.js adds the column labels — see
+   labelTableForPhone.) Computers keep the normal tables. */
+@media (max-width: 640px) {
+  .view-section {
+    padding: 14px 12px;
+  }
+
+  /* Overview numbers: two per row instead of one card per screen-row */
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-card .value {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Items Ordered stays a table (it's a long list) — drop the Category
+     column so Quantity and Revenue fit; the item's JUICE/ALCOHOL tag
+     and the Drinks/Food filter still show the category. */
+  #itemsTable th:nth-child(2),
+  #itemsTable td:nth-child(2) {
+    display: none;
+  }
+
+  #itemsTable table.grid th,
+  #itemsTable table.grid td {
+    padding: 8px 6px;
+  }
+
+  /* Row -> card */
+  .phone-cards table.grid,
+  .phone-cards table.grid tbody,
+  .phone-cards table.grid tr,
+  .phone-cards table.grid td {
+    display: block;
+    width: 100%;
+  }
+
+  .phone-cards table.grid thead {
+    display: none;
+  }
+
+  .phone-cards table.grid tr {
+    margin-bottom: 10px;
+    padding: 4px 14px;
+    background: var(--glass-fill-light);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+  }
+
+  .phone-cards table.grid td {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--glass-border);
+  }
+
+  .phone-cards table.grid td:last-child {
+    border-bottom: none;
+  }
+
+  .phone-cards table.grid td::before {
+    content: attr(data-label);
+    flex: 0 0 34%;
+    font-family: Inter, 'Noto Sans Ethiopic', sans-serif; /* not the mono font some columns use */
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .phone-cards table.grid td:not([data-label])::before {
+    display: none;
+  }
+
+  .phone-cards .cell-value {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  /* Action cell (last column): buttons spread along the card's bottom,
+     big enough to tap */
+  .phone-cards table.grid td:last-child .cell-value {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .phone-cards table.grid td:last-child .cell-value > button {
+    min-height: 38px;
+    padding: 8px 14px;
+  }
+
+  .phone-cards table.grid tr.empty-row td {
+    justify-content: center;
+    text-align: center;
+  }
 }
