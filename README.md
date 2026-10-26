@@ -119,14 +119,16 @@ instead of `npm start` (requires `nodemon`, already in devDependencies).
 
 `render.yaml` lets [Render](https://render.com) set everything up from its
 website: sign in with GitHub → **New** → **Blueprint** → pick this repo →
-**Apply**. It creates the app and a Postgres database, generates
+**Apply**. Render asks for `DATABASE_URL`: paste a Postgres connection
+string, e.g. from a free [Neon](https://neon.tech) database (Render allows
+only one free database per workspace). It then generates
 `JWT_SECRET`, runs migrations, and seeds the demo data on first boot
 (`src/seedIfEmpty.js` skips seeding once users exist, so redeploys don't
 reset your menu). You get a public `https://….onrender.com` URL — add
 `/waiter/`, `/barista/`, `/chef/` or `/admin/` to it.
 
 Free-tier caveats: the app sleeps after ~15 minutes idle (first visit then
-takes ~1 minute), the free database expires after 30 days unless upgraded,
+takes ~1 minute),
 and uploaded payment screenshots are lost on each redeploy. Anyone with the
 URL can sign in with the demo logins (all `password123`). Before sharing,
 add your own accounts under **Staff** in the Manager Dashboard, sign in as

@@ -1,6 +1,8 @@
 # One-click hosting on Render (https://render.com): New → Blueprint → pick
-# this repo. Creates the web app plus a Postgres database, generates
-# JWT_SECRET, runs migrations, and seeds demo data on the first boot.
+# this repo. Render asks for DATABASE_URL — paste a Postgres connection
+# string (e.g. a free https://neon.tech database; Render allows only one
+# free database per workspace). Generates JWT_SECRET, runs migrations, and
+# seeds demo data on the first boot.
 services:
   - type: web
     name: order-management-system
@@ -13,15 +15,9 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: DATABASE_URL
-        fromDatabase:
-          name: order-management-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_ORIGIN
         value: "*"
 
-databases:
-  - name: order-management-db
-    plan: free
-    region: frankfurt
