@@ -128,8 +128,9 @@ reset your menu). You get a public `https://….onrender.com` URL — add
 Free-tier caveats: the app sleeps after ~15 minutes idle (first visit then
 takes ~1 minute), the free database expires after 30 days unless upgraded,
 and uploaded payment screenshots are lost on each redeploy. Anyone with the
-URL can sign in with the demo logins, so change those passwords before
-sharing widely.
+URL can sign in with the demo logins (all `password123`). Before sharing,
+add your own accounts under **Staff** in the Manager Dashboard, sign in as
+your new manager, and deactivate the four `@demo.com` accounts.
 
 ## Item customization (temperature, ingredients, extras)
 
