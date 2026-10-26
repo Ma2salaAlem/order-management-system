@@ -6,6 +6,7 @@ services:
     name: order-management-system
     runtime: node
     plan: free
+    region: frankfurt
     buildCommand: npm install
     startCommand: npx prisma migrate deploy && node src/seedIfEmpty.js && node src/server.js
     envVars:
@@ -23,3 +24,4 @@ services:
 databases:
   - name: order-management-db
     plan: free
+    region: frankfurt
