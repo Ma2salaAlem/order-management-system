@@ -10,7 +10,7 @@ services:
     plan: free
     region: frankfurt
     buildCommand: npm install
-    startCommand: npx prisma migrate deploy && node src/seedIfEmpty.js && node src/server.js
+    startCommand: node scripts/fix-split-init-migration.js && npx prisma migrate deploy && node src/seedIfEmpty.js && node src/server.js
     envVars:
       - key: NODE_VERSION
         value: "22"
