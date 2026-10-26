@@ -7,20 +7,95 @@
   let token = localStorage.getItem('kds_waiter_token') || null;
   let user = JSON.parse(localStorage.getItem('kds_waiter_user') || 'null');
   let socket = null;
+  let audioCtx = null;
+
+  // ---------------- Completion chime ----------------
+  // Web Audio synth chime (same approach as the Barista Display) rather
+  // than an audio file — no /assets/notification.mp3 dependency to go
+  // missing, and no network request needed to play it.
+  function playCompletionChime() {
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+      const now = audioCtx.currentTime;
+      // A slightly different two-note pattern than the Barista Display's
+      // alert chime, so it reads as "your order is ready" rather than
+      // "new ticket in" if someone's ever in earshot of both screens.
+      [660, 990].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.2, now + i * 0.12 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.28);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now + i * 0.12);
+        osc.stop(now + i * 0.12 + 0.3);
+      });
+    } catch (e) {
+      // Web Audio unavailable in this environment — fail silently, the
+      // in-app notification (pushNotification) still shows regardless.
+    }
+  }
+
+  // Mobile browsers block audio until a real user gesture has happened on
+  // the page. Rather than waiting for the first genuine sound attempt
+  // (which is out of our control — it's whenever a ticket completes) and
+  // hoping a gesture already happened, explicitly create/resume the
+  // AudioContext on the very first tap/click anywhere, so it's unlocked
+  // well before any notification needs to play.
+  // ---------------- Notification dedupe ----------------
+  // If the same event key arrives again within this window, it's treated
+  // as a duplicate delivery (e.g. a socket reconnect replaying an event,
+  // or — if it ever happens again — a doubled-up listener) and the toast
+  // /chime is skipped rather than firing twice for one real status change.
+  const NOTIFICATION_DEDUPE_MS = 5000;
+  const recentNotificationKeys = new Map(); // key -> timestamp it was last shown
+
+  function shouldNotify(key) {
+    const now = Date.now();
+    // Sweep anything stale so this map never grows unbounded over a long shift.
+    for (const [k, t] of recentNotificationKeys) {
+      if (now - t > NOTIFICATION_DEDUPE_MS) recentNotificationKeys.delete(k);
+    }
+    if (recentNotificationKeys.has(key)) return false;
+    recentNotificationKeys.set(key, now);
+    return true;
+  }
+
+  function unlockAudioOnce() {
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {
+      // ignore — playCompletionChime() will just no-op later if this never unlocks
+    }
+  }
+  document.addEventListener('click', unlockAudioOnce, { once: true });
+
+  // The 3-step ordering flow: 1 = table selection, 2 = menu & item
+  // selection, 3 = receipt/checkout. 'history' is a side page (My Orders)
+  // reachable from the header at any point, outside the numbered flow.
+  let step = 1;
 
   let tables = [];
   let categories = [];
+  let rootNameByCategory = {}; // category id -> 'Drinks' / 'Meals' (for picture placeholders)
   let activeCategory = null; // top-level category id
   let activeSubCategory = null; // child category id, when the active category has children
   let activeSubSubCategory = null; // grandchild category id, e.g. a wine/spirit type under Alcohol
-  const TOP_ITEMS_ID = '__top_items__'; // synthetic "category" for the flat, manager-curated shortcut
   let selectedTable = null;
 
   // basket line shape:
   // { key, menuItemId, name, unitPrice, quantity, temperature,
   //   removedIngredients: [], selectedExtras: [{name, price}] }
   let basket = [];
-  let basketOpen = false;
 
   let myOrders = [];
 
@@ -47,45 +122,43 @@
   const LEGACY_TEMPERATURE_OPTIONS = ['HOT', 'COLD', 'NORMAL']; // fallback for older items saved before per-item lists existed
 
   // ---------------- DOM refs ----------------
-  const loginScreen = document.getElementById('loginScreen');
   const appScreen = document.getElementById('appScreen');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
 
   const tableStatusLine = document.getElementById('tableStatusLine');
   const dateDisplay = document.getElementById('dateDisplay');
+  const historyBtn = document.getElementById('historyBtn');
   const bellBtn = document.getElementById('bellBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const unreadBadge = document.getElementById('unreadBadge');
   const notifPanel = document.getElementById('notifPanel');
 
-  const toggleBtns = document.querySelectorAll('.toggle-btn');
-  const menuView = document.getElementById('menuView');
-  const ordersView = document.getElementById('ordersView');
-  const ordersCount = document.getElementById('ordersCount');
+  const stepTables = document.getElementById('stepTables');
+  const stepMenu = document.getElementById('stepMenu');
+  const stepCheckout = document.getElementById('stepCheckout');
+  const stepHistory = document.getElementById('stepHistory');
+  const STEP_SECTIONS = { 1: stepTables, 2: stepMenu, 3: stepCheckout, history: stepHistory };
+
+  const backToTablesBtn = document.getElementById('backToTablesBtn');
+  const backToMenuBtn = document.getElementById('backToMenuBtn');
+  const backFromHistoryBtn = document.getElementById('backFromHistoryBtn');
+  const orderingForTable = document.getElementById('orderingForTable');
+  const checkoutTableLabel = document.getElementById('checkoutTableLabel');
+
+  const ordersList = document.getElementById('ordersList');
+  const ordersDateInput = document.getElementById('ordersDateInput');
 
   const tableChips = document.getElementById('tableChips');
   const categoryTabs = document.getElementById('categoryTabs');
   const subCategoryTabs = document.getElementById('subCategoryTabs');
   const subSubCategoryTabs = document.getElementById('subSubCategoryTabs');
   const menuGrid = document.getElementById('menuGrid');
-  const noTableWarning = document.getElementById('noTableWarning');
-  const ordersList = document.getElementById('ordersList');
-  const ordersDateInput = document.getElementById('ordersDateInput');
 
-  const orderDetailsModal = document.getElementById('orderDetailsModal');
-  const orderDetailsBody = document.getElementById('orderDetailsBody');
-  const orderDetailsCloseBtn = document.getElementById('orderDetailsCloseBtn');
+  const checkoutSummary = document.getElementById('checkoutSummary');
+  const viewOrderBtn = document.getElementById('viewOrderBtn');
 
-  const basketSheet = document.getElementById('basketSheet');
-  const basketToggle = document.getElementById('basketToggle');
-  const basketChevron = document.getElementById('basketChevron');
-  const basketDetail = document.getElementById('basketDetail');
   const basketItemsEl = document.getElementById('basketItems');
-  const basketCountEl = document.getElementById('basketCount');
-  const basketTotalEl = document.getElementById('basketTotal');
   const basketTotalBigEl = document.getElementById('basketTotalBig');
-  const sendOrderBtn = document.getElementById('sendOrderBtn');
+  const acceptOrderBtn = document.getElementById('acceptOrderBtn');
 
   const toastEl = document.getElementById('toast');
 
@@ -94,16 +167,33 @@
   const customizeItemPrice = document.getElementById('customizeItemPrice');
   const temperatureSection = document.getElementById('temperatureSection');
   const temperatureOptions = document.getElementById('temperatureOptions');
-  const ingredientsSection = document.getElementById('ingredientsSection');
-  const ingredientsOptions = document.getElementById('ingredientsOptions');
-  const extrasSection = document.getElementById('extrasSection');
-  const extrasOptions = document.getElementById('extrasOptions');
+  const ingredientGridSection = document.getElementById('ingredientGridSection');
+  const ingredientGrid = document.getElementById('ingredientGrid');
   const customizeQtyValue = document.getElementById('customizeQtyValue');
   const customizeQtyMinus = document.getElementById('customizeQtyMinus');
   const customizeQtyPlus = document.getElementById('customizeQtyPlus');
   const customizeAddTotal = document.getElementById('customizeAddTotal');
   const customizeCancelBtn = document.getElementById('customizeCancelBtn');
   const customizeAddBtn = document.getElementById('customizeAddBtn');
+  const modalError = document.getElementById('modalError');
+
+  // ---------------- Step navigation ----------------
+  function goToStep(next) {
+    step = next;
+    Object.entries(STEP_SECTIONS).forEach(([key, section]) => {
+      // Object keys are always strings, so compare loosely against `next`
+      section.classList.toggle('hidden', String(key) !== String(next));
+    });
+  }
+
+  backToTablesBtn.addEventListener('click', () => goToStep(1));
+  backToMenuBtn.addEventListener('click', () => goToStep(2));
+  backFromHistoryBtn.addEventListener('click', () => goToStep(1));
+
+  historyBtn.addEventListener('click', () => {
+    goToStep('history');
+    loadMyOrders();
+  });
 
   // ---------------- Date display ----------------
   function updateDateDisplay() {
@@ -166,80 +256,88 @@
   }
 
   // ---------------- Login ----------------
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-
-    try {
-      const data = await api('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      token = data.token;
-      user = data.user;
-      localStorage.setItem('kds_waiter_token', token);
-      localStorage.setItem('kds_waiter_user', JSON.stringify(user));
-      boot();
-    } catch (err) {
-      loginError.textContent = err.message || 'Login failed';
-    }
-  });
+  // Signing in happens on the shared /login/ page, which saves the token
+  // under kds_waiter_token and sends the waiter back here.
+  function goToLogin(expired) {
+    location.replace(`/login/?role=waiter${expired ? '&expired=1' : ''}`);
+  }
 
   function showApp() {
-    loginScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
   }
 
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('kds_waiter_token');
     localStorage.removeItem('kds_waiter_user');
-    location.reload();
+    goToLogin();
   });
-
-  // ---------------- Audio chime (Web Audio, no external asset) ----------------
-  let audioCtx = null;
-  function playChime() {
-    try {
-      if (!audioCtx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AC();
-      }
-      const now = audioCtx.currentTime;
-      [880, 1175].forEach((freq, i) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, now + i * 0.14);
-        gain.gain.exponentialRampToValueAtTime(0.22, now + i * 0.14 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.14 + 0.32);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(now + i * 0.14);
-        osc.stop(now + i * 0.14 + 0.34);
-      });
-    } catch (e) {
-      // Audio not available in this environment — fail silently
-    }
-  }
 
   // ---------------- Socket ----------------
   function connectSocket() {
+    // If a socket already exists (connectSocket() called more than once
+    // for any reason), fully tear it down first — otherwise the OLD
+    // connection keeps running in the background alongside the new one,
+    // and the server event lands on both, which no amount of
+    // socket.off()/.on() rebinding on the new socket can prevent (they're
+    // two entirely separate connections).
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+    }
     socket = io({ auth: { token } });
 
-    socket.on('status_updated', ({ orderId, status }) => {
+    // Fired every time EITHER station (kitchen or bar) changes its own
+    // half of a ticket — station/stationStatus tell you which one just
+    // moved, kitchenStatus/barStatus/status are the order's full current
+    // picture. This is the per-station "ready" ping (item finished, but
+    // the table as a whole may still be waiting on the other station);
+    // the distinct, whole-table 'table_ready_for_checkout' event below
+    // is what fires once both are done.
+    //
+    // socket.off(...).on(...) here (rather than plain .on) means binding
+    // this twice — e.g. if boot() were ever accidentally called a second
+    // time — replaces the old listener instead of stacking a second one
+    // alongside it, which is what caused the same event to fire two (or
+    // more) notifications/chimes for a single status change.
+    socket.off('status_updated').on('status_updated', ({ orderId, station, stationStatus, status }) => {
       const order = myOrders.find((o) => o.id === orderId);
       if (order) order.status = status;
       renderOrders();
 
-      const meta = STATUS_META[status] || {};
-      const label = order ? `Ticket for ${order.table.label}` : 'Your order';
-      pushNotification(`${label} — ${meta.label || status}`);
+      if (stationStatus === 'COMPLETED') {
+        const tableLabel = order ? order.table.label : 'your table';
+        const stationLabel = station === 'kitchen' ? 'Kitchen' : 'Bar';
+        if (shouldNotify(`station:${orderId}:${station}:${stationStatus}`)) {
+          playCompletionChime();
+          pushNotification(`${stationLabel} ready for ${tableLabel}`);
+        }
+        return;
+      }
 
-      // Chime only when the kitchen/bar has actually finished the order —
-      // not on every status hop (e.g. Pending -> In Progress stays silent).
-      if (status === 'COMPLETED') playChime();
+      const meta = STATUS_META[stationStatus] || {};
+      const label = order ? `Ticket for ${order.table.label}` : 'Your order';
+      if (shouldNotify(`station:${orderId}:${station}:${stationStatus}`)) {
+        pushNotification(`${label} — ${meta.label || stationStatus}`);
+      }
+    });
+
+    // Fired once, only when every station a ticket needed has finished —
+    // the table is genuinely ready to be paid out at the Cashier now.
+    socket.off('table_ready_for_checkout').on('table_ready_for_checkout', ({ orderId, tableLabel }) => {
+      if (!shouldNotify(`checkout:${orderId}`)) return;
+      playCompletionChime();
+      pushNotification(`Order for ${tableLabel} is ready!`);
+    });
+
+    // An order filed under this waitress — e.g. the cashier entered it
+    // from her paper ticket — shows up in My Orders without a refresh.
+    socket.off('new_order').on('new_order', () => {
+      loadMyOrders();
+    });
+
+    // The manager changed the menu (price, availability, new item)
+    socket.off('menu_changed').on('menu_changed', () => {
+      loadCategories();
     });
 
     socket.on('order_voided', ({ orderId }) => {
@@ -302,50 +400,108 @@
     showToast._t = setTimeout(() => toastEl.classList.add('hidden'), 3500);
   }
 
-  // ---------------- View toggle ----------------
-  toggleBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      toggleBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      const view = btn.dataset.view;
-      menuView.classList.toggle('hidden', view !== 'menu');
-      ordersView.classList.toggle('hidden', view !== 'orders');
-      basketSheet.classList.toggle('hidden', view !== 'menu' || basket.length === 0);
-      if (view === 'orders') loadMyOrders();
-    });
-  });
-
-  // ---------------- Tables & menu ----------------
+  // ---------------- Step 1: Tables ----------------
   async function loadTables() {
     tables = await api('/api/tables');
+    // Natural/numeric sort so T2 < T10 (plain alphabetical sorting treats
+    // these as strings and puts T10 right after T1, before T2).
+    tables.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
     tableChips.innerHTML = tables
       .map((t) => `<button class="chip" data-id="${t.id}">${escapeHtml(t.label)}</button>`)
       .join('');
     tableChips.querySelectorAll('.chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        selectedTable = tables.find((t) => t.id === chip.dataset.id);
-        tableChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('selected'));
-        chip.classList.add('selected');
-        tableStatusLine.textContent = `Serving ${selectedTable.label}`;
-        noTableWarning.classList.add('hidden');
-      });
+      chip.addEventListener('click', () => selectTable(chip.dataset.id));
     });
   }
 
-  const TOP_CATEGORY_ICONS = { Drinks: '🥤', Meals: '🍽️', Snacks: '🍿' };
+  // Selecting a table advances straight to Step 2 — that's the whole point
+  // of the linear flow, no extra confirmation needed here.
+  function selectTable(tableId) {
+    selectedTable = tables.find((t) => t.id === tableId);
+    if (!selectedTable) return;
+    tableStatusLine.textContent = `Serving ${selectedTable.label}`;
+    orderingForTable.textContent = selectedTable.label;
+    goToStep(2);
+  }
+
+  // ---------------- Step 2: Menu ----------------
+  // Simple name -> icon lookup for the main category tabs. Falls back to
+  // no icon for any category name not listed here (e.g. a future addition).
+  const CATEGORY_ICONS = {
+    'Top Items': '⭐',
+    Drinks: '🥤',
+    Meals: '🍽️',
+    Snacks: '🍿',
+  };
+
+  // "Top Items" isn't a real category in the database — an item can only
+  // belong to one category, so making it a real 4th category would mean
+  // duplicating menu items. Instead this walks the whole category tree
+  // returned by the API and pulls out anything marked isFeatured, building
+  // a client-side-only pseudo-category that behaves exactly like a real
+  // one everywhere else in this file (it has an id, a name, and a flat
+  // menuItems list, with no children — so it renders with no subcategory row).
+  function collectFeaturedItems(nodes) {
+    let found = [];
+    for (const node of nodes) {
+      if (node.menuItems) found = found.concat(node.menuItems.filter((i) => i.isFeatured));
+      if (node.children && node.children.length > 0) found = found.concat(collectFeaturedItems(node.children));
+    }
+    return found;
+  }
 
   async function loadCategories() {
-    categories = await api('/api/categories');
-    if (categories.length > 0) selectCategory(categories[0].id, { skipRender: true });
-    const topItemsPill = `<button class="category-pill top-items-pill" data-id="${TOP_ITEMS_ID}">⭐ Top Items</button>`;
-    categoryTabs.innerHTML =
-      topItemsPill +
-      categories
-        .map((c) => {
-          const icon = TOP_CATEGORY_ICONS[c.name] || '';
-          return `<button class="category-pill" data-id="${c.id}">${icon ? `${icon} ` : ''}${escapeHtml(c.name)}</button>`;
-        })
-        .join('');
+    let realCategories;
+    try {
+      realCategories = await api('/api/categories');
+    } catch (err) {
+      // Don't let a failed fetch leave the whole category area silently
+      // blank with no clue why — log full details for debugging and show
+      // something visible with a retry, right where the tabs would be.
+      console.error('Failed to load categories:', err);
+      categoryTabs.innerHTML = `
+        <div class="category-load-error">
+          Couldn't load the menu (${escapeHtml(err.message || 'unknown error')}).
+          <button type="button" id="retryCategoriesBtn">Retry</button>
+        </div>`;
+      const retryBtn = document.getElementById('retryCategoriesBtn');
+      if (retryBtn) retryBtn.addEventListener('click', () => loadCategories());
+      return; // stop here — nothing below is safe to run without real data
+    }
+
+    // Defensive: every node should carry a children array (see catalog.js),
+    // but never let a missing/undefined one crash rendering — treat it as
+    // "no children" instead of throwing.
+    realCategories = (realCategories || []).map((c) => ({ ...c, children: c.children || [] }));
+
+    const topItemsCategory = {
+      id: '__top_items__',
+      name: 'Top Items',
+      menuItems: collectFeaturedItems(realCategories),
+      children: [],
+    };
+
+    categories = [topItemsCategory, ...realCategories];
+
+    // Which top-level section each category is in — picks the 🥤 / 🍽
+    // placeholder for dishes without a picture (see menuCardPicture)
+    rootNameByCategory = {};
+    const walk = (node, rootName) => {
+      rootNameByCategory[node.id] = rootName;
+      (node.children || []).forEach((child) => walk(child, rootName));
+    };
+    realCategories.forEach((root) => walk(root, root.name));
+
+    // Keep the waiter's place when this is a live menu reload
+    // (menu_changed) rather than the first load
+    const keepActive = categories.some((c) => c.id === activeCategory);
+    if (!keepActive && categories.length > 0) selectCategory(categories[0].id, { skipRender: true });
+    categoryTabs.innerHTML = categories
+      .map((c) => {
+        const icon = CATEGORY_ICONS[c.name] || '';
+        return `<button class="category-pill" data-id="${c.id}">${icon ? icon + ' ' : ''}${escapeHtml(c.name)}</button>`;
+      })
+      .join('');
     categoryTabs.querySelectorAll('.category-pill').forEach((pill) => {
       pill.addEventListener('click', () => selectCategory(pill.dataset.id));
     });
@@ -453,49 +609,27 @@
       || (item.extraOptions && item.extraOptions.length > 0);
   }
 
-  // Walks the full category tree (top -> sub -> sub-sub) and returns every
-  // menu item found anywhere in it — used to build the flat Top Items list
-  // regardless of which category/sub-category a "regular" item lives under.
-  function collectAllMenuItems(nodes) {
-    let all = [];
-    (nodes || []).forEach((node) => {
-      if (Array.isArray(node.menuItems)) all = all.concat(node.menuItems);
-      if (Array.isArray(node.children) && node.children.length > 0) all = all.concat(collectAllMenuItems(node.children));
-    });
-    return all;
-  }
-
   function renderMenuGrid() {
+    const cat = categories.find((c) => c.id === activeCategory);
     let items = [];
-
-    if (activeCategory === TOP_ITEMS_ID) {
-      items = collectAllMenuItems(categories).filter((i) => i.isFeatured);
-    } else {
-      const cat = categories.find((c) => c.id === activeCategory);
-      if (cat && cat.children && cat.children.length > 0) {
-        const subCat = cat.children.find((c) => c.id === activeSubCategory) || cat.children[0];
-        if (subCat && subCat.children && subCat.children.length > 0) {
-          const subSubCat = subCat.children.find((c) => c.id === activeSubSubCategory) || subCat.children[0];
-          items = subSubCat ? subSubCat.menuItems : [];
-        } else {
-          items = subCat ? subCat.menuItems : [];
-        }
-      } else if (cat) {
-        items = cat.menuItems;
+    if (cat && cat.children && cat.children.length > 0) {
+      const subCat = cat.children.find((c) => c.id === activeSubCategory) || cat.children[0];
+      if (subCat && subCat.children && subCat.children.length > 0) {
+        const subSubCat = subCat.children.find((c) => c.id === activeSubSubCategory) || subCat.children[0];
+        items = subSubCat ? subSubCat.menuItems : [];
+      } else {
+        items = subCat ? subCat.menuItems : [];
       }
+    } else if (cat) {
+      items = cat.menuItems;
     }
-
-    if (activeCategory === TOP_ITEMS_ID && items.length === 0) {
-      menuGrid.innerHTML = `<p class="no-table-warning" style="position:static;">No Top Items marked yet — your manager can star items from the Manager Dashboard's Menu tab.</p>`;
-      return;
-    }
-
     menuGrid.innerHTML = items
       .map(
         (item) => `
-        <div class="menu-card">
+        <div class="menu-card" data-id="${item.id}">
+          <span class="card-qty mono" hidden></span>
+          ${menuCardPicture(item)}
           <div>
-            ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="" class="menu-card-img" />` : ''}
             <div class="name">${escapeHtml(item.name)}</div>
             <div class="price mono">$${Number(item.price).toFixed(2)}</div>
           </div>
@@ -503,6 +637,17 @@
         </div>`
       )
       .join('');
+    // A picture link that doesn't load (moved, typo) shows the placeholder
+    // instead of a broken-image icon
+    menuGrid.querySelectorAll('img.card-img').forEach((img) => {
+      img.addEventListener('error', () => {
+        const fallback = document.createElement('span');
+        fallback.className = 'card-img card-img-fallback';
+        fallback.textContent = img.dataset.fallback;
+        img.replaceWith(fallback);
+      });
+    });
+    updateMenuBadges();
 
     menuGrid.querySelectorAll('.add-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -532,6 +677,7 @@
     customizeRemoved = new Set();
     customizeExtras = new Set();
     customizeQty = 1;
+    modalError.classList.add('hidden'); // clear any leftover error from a previous item
 
     customizeItemName.textContent = item.name;
     customizeItemPrice.textContent = `$${Number(item.price).toFixed(2)} base`;
@@ -553,6 +699,7 @@
           customizeTemperature = chip.dataset.temp;
           temperatureOptions.querySelectorAll('.option-chip').forEach((c) => c.classList.remove('selected'));
           chip.classList.add('selected');
+          modalError.classList.add('hidden'); // picking a temperature resolves the earlier warning
           updateCustomizeTotal();
         });
       });
@@ -560,55 +707,64 @@
       temperatureSection.classList.add('hidden');
     }
 
-    // Removable ingredients
-    if (item.customizableIngredients && item.customizableIngredients.length > 0) {
-      ingredientsSection.classList.remove('hidden');
-      ingredientsOptions.innerHTML = item.customizableIngredients
-        .map((ing) => `<button type="button" class="option-chip" data-ing="${escapeHtml(ing)}">${escapeHtml(ing)}</button>`)
-        .join('');
-      ingredientsOptions.querySelectorAll('.option-chip').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          const ing = chip.dataset.ing;
-          if (customizeRemoved.has(ing)) {
-            customizeRemoved.delete(ing);
-            chip.classList.remove('selected');
-          } else {
-            customizeRemoved.add(ing);
-            chip.classList.add('selected');
-          }
-        });
-      });
-    } else {
-      ingredientsSection.classList.add('hidden');
-    }
-
-    // Extras
+    // Unified ingredient grid: removable base ingredients (red minus,
+    // active/included by default) and extras (green plus, off by default)
+    // rendered together as one set of toggle cards.
+    const removable = Array.isArray(item.customizableIngredients) ? item.customizableIngredients : [];
     const extras = Array.isArray(item.extraOptions) ? item.extraOptions : [];
-    if (extras.length > 0) {
-      extrasSection.classList.remove('hidden');
-      extrasOptions.innerHTML = extras
+
+    if (removable.length > 0 || extras.length > 0) {
+      ingredientGridSection.classList.remove('hidden');
+      const removableCards = removable
         .map(
-          (ex) => `
-          <button type="button" class="option-chip" data-extra="${escapeHtml(ex.name)}" data-price="${ex.price}">
-            ${escapeHtml(ex.name)} <span class="extra-price">+$${Number(ex.price).toFixed(2)}</span>
+          (ing) => `
+          <button type="button" class="ingredient-card remove-type included" data-kind="remove" data-name="${escapeHtml(ing)}">
+            <span class="ingredient-toggle-icon">−</span>
+            <span class="ingredient-card-name">${escapeHtml(ing)}</span>
           </button>`
         )
         .join('');
-      extrasOptions.querySelectorAll('.option-chip').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          const name = chip.dataset.extra;
+      const extraCards = extras
+        .map(
+          (ex) => `
+          <button type="button" class="ingredient-card extra-type" data-kind="extra" data-name="${escapeHtml(ex.name)}" data-price="${ex.price}">
+            <span class="ingredient-toggle-icon">+</span>
+            <span class="ingredient-card-name">${escapeHtml(ex.name)} <span class="extra-price">+$${Number(ex.price).toFixed(2)}</span></span>
+          </button>`
+        )
+        .join('');
+      ingredientGrid.innerHTML = removableCards + extraCards;
+
+      ingredientGrid.querySelectorAll('.ingredient-card[data-kind="remove"]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const ing = card.dataset.name;
+          if (customizeRemoved.has(ing)) {
+            // was removed (grayed out) — put it back
+            customizeRemoved.delete(ing);
+            card.classList.add('included');
+          } else {
+            // was included — take it out
+            customizeRemoved.add(ing);
+            card.classList.remove('included');
+          }
+        });
+      });
+
+      ingredientGrid.querySelectorAll('.ingredient-card[data-kind="extra"]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const name = card.dataset.name;
           if (customizeExtras.has(name)) {
             customizeExtras.delete(name);
-            chip.classList.remove('selected');
+            card.classList.remove('selected');
           } else {
             customizeExtras.add(name);
-            chip.classList.add('selected');
+            card.classList.add('selected');
           }
           updateCustomizeTotal();
         });
       });
     } else {
-      extrasSection.classList.add('hidden');
+      ingredientGridSection.classList.add('hidden');
     }
 
     customizeQtyValue.textContent = customizeQty;
@@ -645,9 +801,12 @@
 
   customizeAddBtn.addEventListener('click', () => {
     if (customizing.hasTemperatureOption && !customizeTemperature) {
+      modalError.textContent = 'Please select a temperature first';
+      modalError.classList.remove('hidden');
       showToast('Pick a temperature first');
       return;
     }
+    modalError.classList.add('hidden');
     const removedIngredients = Array.from(customizeRemoved);
     const selectedExtras = currentCustomizeExtrasPriced();
     const key = [
@@ -679,8 +838,44 @@
     } else {
       basket.push(line);
     }
-    basketOpen = true;
-    renderBasket();
+    updateBasketUI();
+    popMenuCard(line.menuItemId);
+  }
+
+  // ---------------- Dish pictures ----------------
+  // The picture link set in Manager → Menu (imageUrl) on top of the card;
+  // dishes without one get a 🥤 / 🍽 placeholder so all cards match.
+  function menuCardPicture(item) {
+    const icon = rootNameByCategory[item.categoryId] === 'Drinks' ? '🥤' : '🍽';
+    if (!item.imageUrl) return `<span class="card-img card-img-fallback">${icon}</span>`;
+    const src = escapeHtml(item.imageUrl).replace(/"/g, '&quot;');
+    return `<img class="card-img" src="${src}" alt="" loading="lazy" data-fallback="${icon}" />`;
+  }
+
+  // ---------------- "Is it in the order?" feedback on the menu ----------------
+  // Tapping + used to change nothing on the card — only the total at the
+  // bottom moved. A dish in the order now shows a gold ×N badge and
+  // border, and pops when added (same as the Cashier's New Order menu).
+  function updateMenuBadges() {
+    const qtyByItem = {};
+    basket.forEach((b) => {
+      qtyByItem[b.menuItemId] = (qtyByItem[b.menuItemId] || 0) + b.quantity;
+    });
+    menuGrid.querySelectorAll('.menu-card').forEach((card) => {
+      const qty = qtyByItem[card.dataset.id] || 0;
+      const badge = card.querySelector('.card-qty');
+      card.classList.toggle('in-order', qty > 0);
+      badge.hidden = qty === 0;
+      badge.textContent = `×${qty}`;
+    });
+  }
+
+  function popMenuCard(menuItemId) {
+    const card = menuGrid.querySelector(`.menu-card[data-id="${menuItemId}"]`);
+    if (!card) return;
+    card.classList.remove('just-added');
+    void card.offsetWidth; // restart the animation on quick repeat taps
+    card.classList.add('just-added');
   }
 
   function changeQty(key, delta) {
@@ -688,19 +883,34 @@
     if (!item) return;
     item.quantity += delta;
     if (item.quantity <= 0) basket = basket.filter((b) => b.key !== key);
-    renderBasket();
+    updateBasketUI();
   }
 
-  function renderBasket() {
+  function basketTotals() {
     const count = basket.reduce((s, b) => s + b.quantity, 0);
     const total = basket.reduce((s, b) => s + b.quantity * lineUnitPrice(b), 0);
+    return { count, total };
+  }
 
-    basketSheet.classList.toggle('hidden', count === 0);
-    basketCountEl.textContent = count;
-    basketTotalEl.textContent = `$${total.toFixed(2)}`;
+  // Refreshes whichever basket-related UI is currently visible: the
+  // checkout bar at the bottom of Step 2 always updates, and the itemized
+  // receipt on Step 3 updates too if that's the page currently showing
+  // (e.g. after a quantity edit made right there on the receipt).
+  function updateBasketUI() {
+    const { count, total } = basketTotals();
+
+    checkoutSummary.textContent = `${count} item${count === 1 ? '' : 's'} · $${total.toFixed(2)}`;
+    viewOrderBtn.disabled = count === 0;
+    updateMenuBadges();
+
+    if (step === 3) {
+      renderCheckoutItems();
+    }
+  }
+
+  function renderCheckoutItems() {
+    const { total } = basketTotals();
     basketTotalBigEl.textContent = `$${total.toFixed(2)}`;
-    basketDetail.classList.toggle('hidden', !basketOpen);
-    basketChevron.textContent = basketOpen ? '▼' : '▲';
 
     basketItemsEl.innerHTML = basket
       .map((b) => {
@@ -725,22 +935,28 @@
       btn.addEventListener('click', () => changeQty(btn.dataset.key, Number(btn.dataset.delta)));
     });
 
-    sendOrderBtn.disabled = !selectedTable || basket.length === 0;
-
-    if (!selectedTable && basket.length > 0) {
-      noTableWarning.classList.remove('hidden');
+    // If the last item was removed right here on the receipt, there's
+    // nothing left to accept — send the waiter back to the menu instead
+    // of showing an empty receipt.
+    if (basket.length === 0) {
+      showToast('Cart is empty');
+      goToStep(2);
     }
   }
 
-  basketToggle.addEventListener('click', () => {
-    basketOpen = !basketOpen;
-    renderBasket();
+  // Step 2 -> Step 3
+  viewOrderBtn.addEventListener('click', () => {
+    if (basket.length === 0) return;
+    checkoutTableLabel.textContent = selectedTable ? selectedTable.label : '';
+    renderCheckoutItems();
+    goToStep(3);
   });
 
-  sendOrderBtn.addEventListener('click', async () => {
+  // Step 3 -> submit -> back to Step 1
+  acceptOrderBtn.addEventListener('click', async () => {
     if (!selectedTable || basket.length === 0) return;
-    sendOrderBtn.disabled = true;
-    sendOrderBtn.textContent = 'Sending…';
+    acceptOrderBtn.disabled = true;
+    acceptOrderBtn.textContent = 'Sending…';
     try {
       await api('/api/orders', {
         method: 'POST',
@@ -755,20 +971,25 @@
           })),
         }),
       });
+
+      showToast('Order sent to the kitchen/bar!');
+
+      // Reset everything for the next customer/table
       basket = [];
-      basketOpen = false;
-      renderBasket();
-      // switch to the Orders tab so the waiter sees the new ticket
-      document.querySelector('.toggle-btn[data-view="orders"]').click();
+      selectedTable = null;
+      tableStatusLine.textContent = 'Select a table to begin';
+      updateBasketUI();
+      loadMyOrders(); // keep the history tab fresh in the background
+      goToStep(1);
     } catch (err) {
       showToast(err.message || 'Failed to send order');
     } finally {
-      sendOrderBtn.disabled = false;
-      sendOrderBtn.textContent = '📨 Send to Barista';
+      acceptOrderBtn.disabled = false;
+      acceptOrderBtn.textContent = '✅ Accept Order';
     }
   });
 
-  // ---------------- Orders (tickets) ----------------
+  // ---------------- My Orders (history) ----------------
   async function loadMyOrders() {
     try {
       const date = ordersDateInput.value; // YYYY-MM-DD, defaults to today via boot()
@@ -781,83 +1002,9 @@
 
   ordersDateInput.addEventListener('change', loadMyOrders);
 
-  // Tapping any ticket in "My Orders" opens the full breakdown — same
-  // total/items already on the card, plus placed time and void reason
-  // when a manager has voided it.
-  function openOrderDetails(order) {
-    const meta = STATUS_META[order.status] || STATUS_META.PENDING;
-    const total = order.items.reduce((s, i) => s + orderItemLineTotal(i), 0);
-
-    orderDetailsBody.innerHTML = `
-      <div class="details-top">
-        <div>
-          <p class="ticket-eyebrow">Ticket</p>
-          <p class="details-big mono">#${order.id.slice(0, 6).toUpperCase()}</p>
-        </div>
-        <div style="text-align:right">
-          <p class="ticket-eyebrow">Table</p>
-          <p class="details-big">${escapeHtml(order.table.label)}</p>
-        </div>
-      </div>
-
-      <div class="details-row"><span class="details-label">Placed</span><span>${new Date(order.createdAt).toLocaleString()}</span></div>
-      <div class="details-row">
-        <span class="details-label">Status</span>
-        <span class="status-chip" style="background:${meta.color};display:inline-flex;padding:4px 10px;">${meta.icon} ${meta.label}</span>
-      </div>
-
-      <div class="details-divider"></div>
-
-      ${order.items
-        .map((it) => {
-          const summary = customizationSummary({
-            temperature: it.temperature,
-            removedIngredients: it.removedIngredients,
-            selectedExtras: it.selectedExtras,
-          });
-          return `
-          <div class="details-item">
-            <div class="details-item-top">
-              <span>${it.quantity}× ${escapeHtml(it.menuItem.name)}</span>
-              <span class="mono">$${orderItemLineTotal(it).toFixed(2)}</span>
-            </div>
-            ${summary ? `<div class="details-item-custom">${escapeHtml(summary)}</div>` : ''}
-          </div>`;
-        })
-        .join('')}
-
-      <div class="details-divider"></div>
-
-      <div class="details-row details-total">
-        <span>Total</span>
-        <span class="mono">$${total.toFixed(2)}</span>
-      </div>
-
-      ${
-        order.status === 'VOIDED'
-          ? `
-        <div class="void-info-box">
-          <p class="void-info-title">⛔ Voided</p>
-          <div class="details-row"><span class="details-label">Reason</span><span>${escapeHtml(order.voidReason || 'No reason given')}</span></div>
-          ${order.voidedAt ? `<div class="details-row"><span class="details-label">Voided at</span><span>${new Date(order.voidedAt).toLocaleString()}</span></div>` : ''}
-        </div>`
-          : ''
-      }
-    `;
-
-    orderDetailsModal.classList.remove('hidden');
-  }
-
-  orderDetailsCloseBtn.addEventListener('click', () => orderDetailsModal.classList.add('hidden'));
-  orderDetailsModal.addEventListener('click', (e) => {
-    if (e.target === orderDetailsModal) orderDetailsModal.classList.add('hidden');
-  });
-
   function renderOrders() {
-    ordersCount.textContent = myOrders.length ? `(${myOrders.length})` : '';
-
     if (myOrders.length === 0) {
-      ordersList.innerHTML = '<p class="orders-empty">No orders sent yet this session.</p>';
+      ordersList.innerHTML = '<p class="orders-empty">No orders sent on this day.</p>';
       return;
     }
 
@@ -866,7 +1013,7 @@
         const meta = STATUS_META[order.status] || STATUS_META.PENDING;
         const total = order.items.reduce((s, i) => s + orderItemLineTotal(i), 0);
         return `
-        <div class="ticket-card clickable" data-id="${order.id}">
+        <div class="ticket-card">
           <div class="ticket-perforation"></div>
           <div class="ticket-top">
             <div>
@@ -912,25 +1059,21 @@
         </div>`;
       })
       .join('');
-
-    ordersList.querySelectorAll('.ticket-card').forEach((el) => {
-      el.addEventListener('click', () => {
-        const order = myOrders.find((o) => o.id === el.dataset.id);
-        if (order) openOrderDetails(order);
-      });
-    });
   }
 
   // ---------------- Boot ----------------
   async function boot() {
     showApp();
+    goToStep(1);
     updateDateDisplay();
     setInterval(updateDateDisplay, 60 * 1000); // catches the date rolling over past midnight
-    if (!ordersDateInput.value) {
-      ordersDateInput.value = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
-    }
+    // Force today's date on every load — a browser can restore this
+    // input's previous value from form autofill/history on reload, so
+    // checking "if empty" isn't reliable; always reset it explicitly.
+    ordersDateInput.value = todayDateString(); // YYYY-MM-DD in local time
     connectSocket();
     await Promise.all([loadTables(), loadCategories()]);
+    updateBasketUI();
     await loadMyOrders();
   }
 
@@ -940,14 +1083,27 @@
     return div.innerHTML;
   }
 
+  // Explicit local-date formatter for <input type="date"> — builds
+  // YYYY-MM-DD from the browser's own local date components (getFullYear/
+  // getMonth/getDate all read local time, not UTC), so there's no
+  // ambiguity about locale or timezone conversion here.
+  function todayDateString() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   // Auto-login if a token is already stored
   if (token && user) {
     boot().catch((err) => {
       console.error('Boot failed, clearing session:', err);
       localStorage.removeItem('kds_waiter_token');
       localStorage.removeItem('kds_waiter_user');
-      loginScreen.classList.remove('hidden');
-      appScreen.classList.add('hidden');
+      goToLogin();
     });
+  } else {
+    goToLogin();
   }
 })();

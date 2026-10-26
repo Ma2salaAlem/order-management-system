@@ -2,69 +2,124 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Cashier Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Cashier · Ebony</title>
+<link rel="icon" type="image/svg+xml" href="/icons/cashier.svg" />
+<!-- Home Screen app icon (iPhone) + app details (Android) -->
+<link rel="apple-touch-icon" href="/icons/cashier-180.png" />
+<link rel="manifest" href="/icons/cashier.webmanifest" />
+<meta name="theme-color" content="#0e1116" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 <link rel="stylesheet" href="/theme.css" />
 <link rel="stylesheet" href="cashier.css" />
 </head>
 <body>
 
-  <!-- ================= LOGIN ================= -->
-  <div id="loginScreen" class="login-screen">
-    <div class="login-card">
-      <h1>CASHIER</h1>
-      <p class="subtitle">Cashier / Manager sign in</p>
-
-      <form id="loginForm">
-        <label for="email">Email</label>
-        <input type="email" id="email" autocomplete="username" required />
-
-        <label for="password">Password</label>
-        <input type="password" id="password" autocomplete="current-password" required />
-
-        <button type="submit" class="login-submit">Sign In</button>
-        <p class="login-error" id="loginError"></p>
-      </form>
-
-      <div class="login-hint">
-        No cashier account yet? Create one from the Manager Dashboard's Staff tab (role: Cashier).
-      </div>
-    </div>
-  </div>
-
   <!-- ================= MAIN APP ================= -->
   <div id="appScreen" class="hidden">
 
-    <header class="app-header">
-      <div class="header-left">
-        <span class="icon">💵</span>
-        <div>
-          <h1 class="display-heading app-title">CASHIER</h1>
-          <p class="app-subtitle" id="dateDisplay"></p>
-        </div>
+    <header class="app-header brand-header">
+      <div class="header-left brand-slot-left">
+        <p class="app-subtitle" id="dateDisplay"></p>
       </div>
-      <div class="header-right">
-        <button id="refreshBtn" class="icon-btn" title="Refresh">🔄</button>
-        <button id="logoutBtn" class="icon-btn" aria-label="Log out" title="Log out">🚪</button>
+      <h1 class="brand"><span class="brand-name">Ebony</span><span class="brand-role">Cashier</span></h1>
+      <div class="header-right brand-slot-right">
+        <input type="date" id="headerDateInput" class="date-input" title="Filter by date" />
+        <button id="refreshBtn" class="icon-btn" title="Refresh">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.14-6.36L21 8"></path><path d="M21 3v5h-5"></path></svg>
+        </button>
+        <button id="logoutBtn" class="icon-btn" aria-label="Log out" title="Log out">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
       </div>
     </header>
 
     <div class="view-toggle">
-      <button class="toggle-btn active" data-view="bills">Open Bills</button>
+      <button class="toggle-btn active" data-view="order">New Order</button>
+      <button class="toggle-btn" data-view="bills">Open Bills</button>
       <button class="toggle-btn" data-view="history">Payment History</button>
     </div>
 
+    <!-- Food/drinks the kitchen or bar just finished — stays up until the
+         cashier has told the waitress and taps ✕, since the waitresses
+         have no screen of their own to be notified on. -->
+    <div id="readyStrip" class="ready-strip hidden"></div>
+
+    <!-- ---------------- NEW ORDER (entered from a waitress's paper ticket) ---------------- -->
+    <!-- Same 3-step flow as the waiter screen: 1 = waitress + table,
+         2 = menu, 3 = order summary / accept. -->
+    <section id="orderView" class="view-section">
+
+      <!-- STEP 1 — who and where -->
+      <div id="orderStepWho" class="order-step">
+        <p class="section-label">1 · Choose the waitress</p>
+        <div id="waiterChips" class="pick-chips"></div>
+
+        <p class="section-label">2 · Choose the table</p>
+        <div id="tableChips" class="pick-chips"></div>
+
+        <p id="orderHint" class="order-hint"></p>
+      </div>
+
+      <!-- STEP 2 — food & drinks -->
+      <div id="orderStepMenu" class="order-step hidden">
+        <div class="step-nav-row">
+          <button type="button" id="backToWhoBtn" class="secondary-btn">← Back</button>
+          <p class="ordering-for" id="orderingForMenu"></p>
+        </div>
+
+        <div id="categoryTabs" class="category-tabs"></div>
+        <div id="subCategoryTabs" class="category-tabs subcategory-tabs hidden"></div>
+        <div id="subSubCategoryTabs" class="category-tabs subcategory-tabs subsubcategory-tabs hidden"></div>
+        <div id="menuGrid" class="menu-grid"></div>
+
+        <div class="checkout-bar">
+          <span id="checkoutSummary" class="checkout-summary">0 items · $0.00</span>
+          <button type="button" id="viewOrderBtn" class="primary-btn" disabled>View Order / Checkout</button>
+        </div>
+      </div>
+
+      <!-- STEP 3 — summary & accept -->
+      <div id="orderStepCheckout" class="order-step hidden">
+        <div class="step-nav-row">
+          <button type="button" id="backToMenuBtn" class="secondary-btn">← Back to Menu</button>
+          <p class="ordering-for" id="orderingForCheckout"></p>
+        </div>
+
+        <h2 class="receipt-title display-heading">Order Summary</h2>
+        <div class="order-summary-panel">
+          <div id="basketItems" class="basket-items"></div>
+          <div class="basket-total-row">
+            <span>Total</span>
+            <span id="basketTotal" class="mono">$0.00</span>
+          </div>
+        </div>
+
+        <button type="button" id="acceptOrderBtn" class="send-btn">✅ Accept Order</button>
+      </div>
+    </section>
+
     <!-- ---------------- OPEN BILLS ---------------- -->
-    <section id="billsView" class="view-section">
+    <section id="billsView" class="view-section hidden">
       <div id="tablesGrid" class="tables-grid"></div>
     </section>
 
     <!-- ---------------- PAYMENT HISTORY ---------------- -->
     <section id="historyView" class="view-section hidden">
-      <label class="date-picker-label">
-        Day
-        <input type="date" id="historyDateInput" class="date-input" />
-      </label>
+      <div class="history-filters">
+        <label class="date-picker-label">
+          Day
+          <input type="date" id="historyDateInput" class="date-input" />
+        </label>
+        <!-- Options are filled in by cashier.js from the waiters who have payments on the selected day -->
+        <label class="date-picker-label">
+          Waiter
+          <select id="historyWaiterSelect" class="date-input waiter-select">
+            <option value="all">All Waiters</option>
+          </select>
+        </label>
+      </div>
       <div id="historyList" class="history-list"></div>
     </section>
 
@@ -80,19 +135,44 @@
       <div id="billBody"></div>
 
       <div class="pay-controls">
-        <label for="paymentMethodSelect">Payment method</label>
-        <select id="paymentMethodSelect">
-          <option value="CASH">💵 Cash</option>
-          <option value="CARD">💳 Card</option>
-          <option value="TELEBIRR">📱 Telebirr</option>
-          <option value="CBE">🏦 CBE (Commercial Bank of Ethiopia)</option>
-          <option value="BOA">🏦 BOA (Bank of Abyssinia)</option>
-          <option value="MOBILE_MONEY">📱 Other Mobile Money</option>
-        </select>
+        <label>Payment method</label>
+        <div id="paymentMethodGrid" class="payment-method-grid">
+          <button type="button" class="payment-tile active" data-method="CASH">
+            <span class="payment-tile-icon">💵</span>
+            <span class="payment-tile-label">Cash</span>
+          </button>
+          <button type="button" class="payment-tile" data-method="CARD">
+            <span class="payment-tile-icon">💳</span>
+            <span class="payment-tile-label">Card</span>
+          </button>
+          <button type="button" class="payment-tile" data-method="TELEBIRR">
+            <img src="images/telebirr.png" alt="" class="payment-tile-logo" />
+            <span class="payment-tile-label">Telebirr</span>
+          </button>
+          <button type="button" class="payment-tile" data-method="CBE">
+            <img src="images/cbe.jpg" alt="" class="payment-tile-logo" />
+            <span class="payment-tile-label">CBE</span>
+          </button>
+          <button type="button" class="payment-tile" data-method="BOA">
+            <img src="images/boa.png" alt="" class="payment-tile-logo" />
+            <span class="payment-tile-label">BOA</span>
+          </button>
+          <button type="button" class="payment-tile" data-method="MOBILE_MONEY">
+            <span class="payment-tile-icon">📱</span>
+            <span class="payment-tile-label">Other Mobile Money</span>
+          </button>
+        </div>
 
-        <label for="paymentScreenshotInput">Payment screenshot (optional)</label>
-        <input type="file" id="paymentScreenshotInput" accept="image/*" />
-        <p class="field-hint">For Telebirr/CBE/BOA — attach the customer's transaction confirmation as proof.</p>
+        <label>Payment proof photo (optional)</label>
+        <div class="proof-buttons">
+          <button type="button" id="takePhotoBtn" class="proof-btn">📷 Take Photo</button>
+          <button type="button" id="uploadScreenshotBtn" class="proof-btn">🖼 Upload Screenshot</button>
+        </div>
+        <input type="file" id="paymentScreenshotInput" accept="image/*" class="hidden" />
+        <!-- Phones/tablets without live-camera support in the browser:
+             `capture` opens the camera app directly instead -->
+        <input type="file" id="cameraFallbackInput" accept="image/*" capture="environment" class="hidden" />
+        <p class="field-hint">For Telebirr/CBE/BOA — take a photo of the customer's transaction confirmation, or upload a screenshot of it.</p>
         <div id="screenshotPreviewWrap" class="screenshot-preview-wrap hidden">
           <img id="screenshotPreview" class="screenshot-preview" alt="Payment screenshot preview" />
           <button type="button" id="removeScreenshotBtn" class="small-btn void">Remove</button>
@@ -105,17 +185,76 @@
     </div>
   </div>
 
+  <!-- ---------------- Customize item modal (same options as the waiter screen) ---------------- -->
+  <div id="customizeModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h2 class="modal-title" id="customizeItemName">Item</h2>
+        <button type="button" id="customizeCloseBtn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="modal-sub mono" id="customizeItemPrice"></p>
+
+      <div id="temperatureSection" class="customize-section hidden">
+        <p class="customize-label">Temperature</p>
+        <div id="temperatureOptions" class="option-row"></div>
+      </div>
+
+      <div id="ingredientGridSection" class="customize-section hidden">
+        <p class="customize-label">Ingredients</p>
+        <div id="ingredientGrid" class="ingredient-grid"></div>
+      </div>
+
+      <div class="customize-section">
+        <p class="customize-label">Quantity</p>
+        <div class="qty-controls">
+          <button type="button" id="customizeQtyMinus" class="qty-btn minus">−</button>
+          <span class="qty-value" id="customizeQtyValue">1</span>
+          <button type="button" id="customizeQtyPlus" class="qty-btn plus">+</button>
+        </div>
+      </div>
+
+      <p id="customizeError" class="modal-error"></p>
+
+      <button type="button" id="customizeAddBtn" class="primary-btn pay-btn">Add — <span id="customizeAddTotal" class="mono">$0.00</span></button>
+    </div>
+  </div>
+
+  <!-- ---------------- Camera (photo of the transaction / receipt) ---------------- -->
+  <div id="cameraModal" class="modal-overlay camera-overlay hidden">
+    <div class="modal-card camera-card">
+      <div class="modal-header-row">
+        <h2 class="modal-title">Take Photo</h2>
+        <button type="button" id="cameraCloseBtn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="camera-stage">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <img id="cameraStill" class="hidden" alt="Captured photo" />
+      </div>
+      <p id="cameraError" class="modal-error"></p>
+      <div class="camera-actions">
+        <button type="button" id="cameraSwitchBtn" class="proof-btn hidden" title="Switch camera">🔄 Switch</button>
+        <button type="button" id="cameraCaptureBtn" class="primary-btn">📸 Capture</button>
+        <button type="button" id="cameraRetakeBtn" class="proof-btn hidden">↺ Retake</button>
+        <button type="button" id="cameraUseBtn" class="primary-btn hidden">✓ Use Photo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------------- Screenshot lightbox (view a past payment's proof) ---------------- -->
   <div id="screenshotLightbox" class="modal-overlay hidden">
     <div class="lightbox-card">
       <button type="button" id="lightboxCloseBtn" class="icon-btn lightbox-close" aria-label="Close">✕</button>
       <img id="lightboxImage" alt="Payment screenshot" />
+      <p id="lightboxFallback" class="lightbox-fallback hidden">📷 Screenshot no longer available</p>
     </div>
   </div>
 
   <!-- ---------------- Printable receipt (hidden on screen, shown only when printing) ---------------- -->
   <div id="receiptPrintArea" class="receipt-print-area"></div>
 
+<script src="/i18n.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="order-entry.js"></script>
 <script src="cashier.js"></script>
 </body>
 </html>

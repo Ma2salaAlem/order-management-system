@@ -1,5 +1,5 @@
 const prisma = require('../prisma/client');
-const { lineTotal } = require('../utils/pricing');
+const { addisDayStart } = require('./orderController');
 
 /**
  * GET /api/reports/daily?date=YYYY-MM-DD
@@ -21,7 +21,11 @@ const { lineTotal } = require('../utils/pricing');
 async function dailyReport(req, res) {
   try {
     const dateParam = req.query.date; // 'YYYY-MM-DD'
-    const dayStart = dateParam ? new Date(`${dateParam}T00:00:00.000Z`) : startOfToday();
+    // Addis Ababa calendar day (UTC+3), same as the Orders tab, Cashier
+    // and Barista/Chef history — this used the UTC day before, so orders
+    // placed between local midnight and 03:00 counted toward the previous
+    // day's Overview numbers while the Orders tab showed them under today.
+    const dayStart = addisDayStart(dateParam);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
     // ---- Source A: live order data ----
@@ -39,11 +43,11 @@ async function dailyReport(req, res) {
     for (const order of nonVoided) {
       for (const item of order.items) {
         const key = item.menuItem.name;
-        const total = lineTotal(item);
-        liveRevenue += total;
+        const lineTotal = Number(item.unitPrice) * item.quantity;
+        liveRevenue += lineTotal;
         if (!itemTotals[key]) itemTotals[key] = { quantity: 0, revenue: 0 };
         itemTotals[key].quantity += item.quantity;
-        itemTotals[key].revenue += total;
+        itemTotals[key].revenue += lineTotal;
       }
     }
 
@@ -75,7 +79,7 @@ async function dailyReport(req, res) {
     const discrepancy = round2(liveRevenue - loggedRevenue);
 
     return res.json({
-      date: dayStart.toISOString().slice(0, 10),
+      date: new Date(dayStart.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10), // Addis date
       summary: {
         ordersPlaced: orders.length,
         ordersVoided: voided.length,
@@ -113,12 +117,6 @@ async function dailyReport(req, res) {
     console.error('dailyReport error:', err);
     return res.status(500).json({ error: 'Failed to generate report' });
   }
-}
-
-function startOfToday() {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
 }
 
 function round2(n) {

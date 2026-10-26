@@ -12,8 +12,10 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 24px;
-  background: var(--ink);
-  border-bottom: 1px solid var(--hairline);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .header-left {
@@ -47,10 +49,19 @@ body {
 .icon-btn {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
+  border-radius: var(--glass-radius);
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
   font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .icon-btn:active {
@@ -66,14 +77,27 @@ body {
 .toggle-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
   color: var(--text-muted);
   font-weight: 700;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .toggle-btn.active {
-  background: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.25);
   color: #fff;
 }
 
@@ -92,22 +116,33 @@ body {
   grid-column: 1 / -1;
   padding: 48px;
   text-align: center;
-  border-radius: 16px;
-  background: var(--surface);
-  border: 1px dashed var(--hairline);
+  border-radius: var(--glass-radius);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px dashed var(--glass-border);
   color: var(--text-muted);
 }
 
 .table-bill-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: all 0.2s ease;
+}
+
+.table-bill-card:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
 }
 
 .table-bill-card:active {
@@ -154,21 +189,49 @@ body {
 }
 
 .history-row {
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
   padding: 14px 16px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 100px 120px 80px 100px;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .history-row .info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0; /* lets the long ticket/meta text truncate instead of forcing the grid wider */
+  overflow: hidden;
+}
+
+.history-row .method-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.history-row .amount-cell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.history-row .view-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.history-row .view-cell .view-screenshot:disabled {
+  pointer-events: none;
+}
+
+.history-row .reprint-cell {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .history-row .ticket-line {
@@ -196,19 +259,25 @@ body {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  background: var(--surface);
+  background: var(--glass-fill-light);
   color: var(--text-muted);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 .small-btn.reprint {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-main);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.small-btn.reprint:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
 }
 
 .date-picker-label {
@@ -221,12 +290,41 @@ body {
 }
 
 .date-input {
-  background: var(--surface);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Payment History: Day + Waiter pickers side by side (wraps on phones) */
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 20px;
+}
+
+.waiter-select {
+  min-width: 160px;
+  cursor: pointer;
+}
+
+/* The open option list is drawn by the OS and ignores the glass fill,
+   so give options a solid dark background to stay readable. */
+.waiter-select option {
+  background: #1b1f27;
+  color: var(--text-main);
 }
 
 /* ---------------- Bill detail modal ---------------- */
@@ -234,6 +332,8 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -246,8 +346,11 @@ body {
   max-width: 440px;
   max-height: 88vh;
   overflow-y: auto;
-  background: var(--surface-raised);
-  border: 1px solid var(--hairline);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   border-radius: 16px;
   padding: 22px;
 }
@@ -270,7 +373,7 @@ body {
 .bill-ticket-group {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed var(--hairline);
+  border-top: 1px dashed var(--glass-border);
 }
 
 .bill-ticket-header {
@@ -300,10 +403,100 @@ body {
   align-items: center;
   margin-top: 18px;
   padding-top: 14px;
-  border-top: 2px solid var(--hairline);
+  border-top: 2px solid var(--glass-border);
   font-weight: 700;
   font-size: 18px;
   color: var(--paper);
+}
+
+/* ---- Paying several orders of one table together ---- */
+.bill-combine-hint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+label.bill-ticket-header {
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.bill-ticket-header .bill-ticket-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.bill-order-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--signal);
+  cursor: pointer;
+}
+
+/* An order on the table that isn't part of this payment */
+.bill-ticket-group.unselected .bill-item-row,
+.bill-ticket-group.unselected .bill-subtotal-row {
+  opacity: 0.45;
+}
+
+.bill-subtotal-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.bill-add-items-btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
+/* ---- "+ Add Items" on an Open Bills card ---- */
+.table-bill-card .same-table-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wait);
+}
+
+.bill-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.add-items-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--paper);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.add-items-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.add-items-btn:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
 }
 
 .pay-controls {
@@ -324,20 +517,149 @@ body {
   width: 100%;
   padding: 11px 13px;
   border-radius: 10px;
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text-main);
   font-size: 14px;
+}
+
+/* ---------------- Payment method tiles ----------------
+   Replaces the native <select> — a native dropdown's option list is
+   rendered by the OS/browser and can't be styled (no glass, no custom
+   colors), which is why it read as low-contrast/grayed-out. */
+.payment-method-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.payment-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border-radius: 14px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+}
+
+.payment-tile:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+.payment-tile.active {
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 16px rgba(255, 90, 60, 0.35);
+}
+
+.payment-tile-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.payment-tile-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px;
+}
+
+.payment-tile-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .pay-controls input[type="file"] {
   width: 100%;
   padding: 10px;
   border-radius: 10px;
-  border: 1px dashed var(--hairline);
-  background: var(--surface);
+  border: 1px dashed var(--glass-border);
+  background: var(--glass-fill-light);
   color: var(--text-main);
   font-size: 13px;
+}
+
+/* ---------------- Payment proof: Take Photo / Upload Screenshot ---------------- */
+.proof-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.proof-btn {
+  padding: 13px 12px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  color: var(--paper);
+  font-size: 14px;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.proof-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+/* Camera window sits above the bill modal it was opened from */
+.camera-overlay {
+  z-index: 65;
+}
+
+.camera-card {
+  max-width: 640px;
+}
+
+.camera-stage {
+  margin-top: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-stage video,
+.camera-stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.camera-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.camera-actions .primary-btn,
+.camera-actions .proof-btn {
+  flex: 1;
+  padding: 14px;
+  font-size: 15px;
 }
 
 .field-hint {
@@ -358,11 +680,14 @@ body {
   height: 64px;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
 }
 
 .small-btn.void {
-  background: var(--danger);
+  background: rgba(255, 71, 87, 0.75);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   padding: 6px 12px;
   border-radius: 8px;
@@ -371,9 +696,9 @@ body {
 }
 
 .small-btn.view-screenshot {
-  background: var(--surface-raised);
+  background: var(--glass-fill-light);
   color: var(--text-main);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--glass-border);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -398,7 +723,9 @@ body {
   position: absolute;
   top: -14px;
   right: -14px;
-  background: var(--surface-raised);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
 }
 
 .modal-error {
@@ -411,10 +738,19 @@ body {
 .primary-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--signal);
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.primary-btn:hover {
+  background: rgba(255, 90, 60, 0.9);
+  transform: translateY(-1px);
 }
 
 .pay-btn {
@@ -429,14 +765,16 @@ body {
   top: 76px;
   right: 24px;
   z-index: 70;
-  background: var(--surface-raised);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--go);
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 500;
   color: var(--paper);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+  box-shadow: var(--glass-shadow);
 }
 
 .toast.error {
@@ -485,5 +823,761 @@ body {
   .receipt-order-header {
     font-weight: bold;
     margin-top: 4px;
+  }
+}
+
+.lightbox-fallback {
+  padding: 40px 60px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+}
+
+/* ---------------- Ready for pickup strip ----------------
+   Stays on screen (across all tabs) until the cashier taps ✕ — the
+   waitresses have no screen of their own, so this is their only alert. */
+.ready-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 24px 0;
+}
+
+.ready-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 999px;
+  background: rgba(51, 196, 140, 0.18);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--go);
+  color: var(--paper);
+  font-size: 13px;
+  animation: readyPulse 1.2s ease-out 3;
+}
+
+.ready-label {
+  font-weight: 700;
+  color: var(--go);
+}
+
+.ready-table {
+  font-weight: 700;
+}
+
+.ready-waiter,
+.ready-time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ready-dismiss {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  font-size: 12px;
+}
+
+.ready-dismiss:hover {
+  background: var(--glass-fill-hover);
+}
+
+@keyframes readyPulse {
+  0% { box-shadow: 0 0 0 0 rgba(51, 196, 140, 0.6); }
+  100% { box-shadow: 0 0 0 12px rgba(51, 196, 140, 0); }
+}
+
+/* ---------------- New Order: 3 steps, same look as the waiter screen ---------------- */
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.category-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.category-pill.active {
+  background: var(--glass-fill-hover);
+  border-color: var(--paper);
+  color: var(--paper);
+}
+
+.subcategory-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--glass-fill-light);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--wait);
+  color: var(--wait);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.subcategory-pill.active {
+  background: rgba(242, 184, 75, 0.85);
+  color: #12151a;
+  font-weight: 600;
+}
+
+.subsubcategory-pill {
+  border-color: var(--prog);
+  color: var(--prog);
+  font-size: 0.8rem;
+  padding: 5px 12px;
+}
+
+.subsubcategory-pill.active {
+  background: rgba(78, 161, 242, 0.85);
+  color: #12151a;
+}
+
+.category-load-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.menu-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 88px;
+  padding: 14px;
+  text-align: left;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-radius);
+  transition: all 0.2s ease;
+}
+
+.menu-card:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+.menu-card:active {
+  transform: scale(0.97);
+}
+
+.menu-card .name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--paper);
+  line-height: 1.35;
+}
+
+/* Dish picture across the top of the card (or a 🥤 / 🍽 placeholder) */
+.menu-card .card-img {
+  display: block;
+  width: calc(100% + 28px); /* bleed over the card's 14px side padding */
+  height: 96px;
+  margin: -14px -14px 2px;
+  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.menu-card .card-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  background: linear-gradient(160deg, rgba(212, 167, 86, 0.18), rgba(255, 255, 255, 0.04));
+}
+
+@media (max-width: 600px) {
+  .menu-card .card-img {
+    height: 80px;
+  }
+}
+
+/* Dish already in the order: gold border + ×N badge; pops when tapped */
+.menu-card {
+  position: relative;
+}
+
+.menu-card.in-order {
+  border-color: #d4a756;
+  box-shadow: 0 0 0 1px rgba(212, 167, 86, 0.6), 0 6px 20px rgba(212, 167, 86, 0.18);
+}
+
+.menu-card .card-qty {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f0cf85, #b8863a);
+  color: #1a1206;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.menu-card .card-qty[hidden] {
+  display: none;
+}
+
+.menu-card.just-added {
+  animation: cardPop 0.35s ease-out;
+}
+
+.menu-card.just-added .card-qty {
+  animation: badgePop 0.35s ease-out;
+}
+
+@keyframes cardPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0.4); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+.menu-card .price {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.pick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pick-chip {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.pick-chip:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.pick-chip.selected {
+  background: var(--accent-glass);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+.basket-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.basket-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.basket-item-info {
+  min-width: 0;
+}
+
+.basket-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.basket-item-price {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.qty-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.qty-btn.minus {
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+}
+
+.qty-btn.plus {
+  background: var(--signal);
+  color: #fff;
+}
+
+.qty-value {
+  min-width: 20px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.basket-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 2px solid var(--glass-border);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--paper);
+}
+
+/* ---------------- Customize item modal ---------------- */
+.modal-sub {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.customize-section {
+  margin-bottom: 18px;
+}
+
+.customize-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option-chip {
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--glass-fill-light);
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+}
+
+.option-chip.selected {
+  background: var(--accent-glass);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.ingredient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.ingredient-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--glass-radius);
+  background: var(--glass-fill-light);
+  border: 1px solid var(--glass-border);
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.ingredient-toggle-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.ingredient-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.ingredient-card.remove-type .ingredient-toggle-icon {
+  background: rgba(122, 46, 28, 0.6);
+  color: var(--danger);
+}
+
+.ingredient-card.remove-type.included {
+  background: var(--glass-fill-hover);
+  border-color: var(--danger);
+}
+
+.ingredient-card.remove-type:not(.included) {
+  opacity: 0.5;
+}
+
+.ingredient-card.extra-type .ingredient-toggle-icon {
+  color: var(--go);
+}
+
+.ingredient-card.extra-type.selected {
+  background: rgba(51, 196, 140, 0.18);
+  border-color: var(--go);
+}
+
+.ingredient-card.extra-type.selected .ingredient-toggle-icon {
+  background: var(--go);
+  color: #fff;
+}
+
+.ingredient-card .extra-price {
+  opacity: 0.75;
+  margin-left: 4px;
+}
+
+/* ---------------- New Order steps (mirrors waiter.css) ---------------- */
+.section-label {
+  display: inline-block;
+  margin: 4px 0 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(15, 20, 28, 0.75);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--paper);
+}
+
+.pick-chips + .section-label {
+  margin-top: 24px;
+}
+
+/* Step 1 chips are the whole screen, so make them big and easy to hit */
+#orderStepWho .pick-chip {
+  min-width: 84px;
+  min-height: 64px;
+  padding: 10px 20px;
+  font-size: 1.05rem;
+}
+
+.order-hint {
+  min-height: 20px;
+  margin: 18px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wait);
+}
+
+.step-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* Solid pill so "Table T5 · Tigist" stays readable over the photo */
+.ordering-for {
+  margin: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: rgba(15, 20, 28, 0.75);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.ordering-for strong {
+  color: var(--paper);
+}
+
+.secondary-btn {
+  padding: 11px 16px;
+  border-radius: 12px;
+  background: var(--glass-fill-light);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.secondary-btn:hover {
+  background: var(--glass-fill-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Step 2: leave room so the fixed checkout bar never covers the last row */
+#orderStepMenu .menu-grid {
+  padding-bottom: 90px;
+}
+
+.checkout-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border);
+  border-radius: 12px 12px 0 0;
+}
+
+.checkout-summary {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.checkout-bar .primary-btn {
+  padding: 13px 22px;
+  font-size: 14px;
+}
+
+.checkout-bar .primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Step 3: Order Summary */
+.receipt-title {
+  margin: 4px 0 12px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--paper);
+}
+
+.order-summary-panel {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: rgba(15, 20, 28, 0.75);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.order-summary-panel .basket-item-name,
+.order-summary-panel .basket-total-row {
+  color: #ffffff;
+}
+
+.order-summary-panel .basket-item-price,
+.order-summary-panel .item-customization {
+  color: #94a3b8;
+}
+
+.order-summary-panel .basket-total-row {
+  margin-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.order-summary-panel .qty-btn.minus {
+  background: var(--paper-shadow);
+  border: none;
+  color: var(--text-paper);
+}
+
+.item-customization {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.send-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--accent-glass);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+}
+
+.send-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Ebony header on phones: the cashier's right side (date picker + two
+   buttons) is too wide to share a row with the logo, so the date picker
+   drops to a second row next to today's date:
+     [Ebony]            [refresh] [log out]
+     [Thu, Sep 25]         [date picker]      */
+@media (max-width: 700px) {
+  .app-header.brand-header {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    column-gap: 8px;
+  }
+
+  .app-header.brand-header .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .app-header.brand-header > .brand-slot-right {
+    display: contents;
+  }
+
+  /* Second row spans the full width (date text left, date box right) so
+     the date box — 16px on phones to stop iOS auto-zoom — never widens
+     the columns of the logo/button row above */
+  .app-header.brand-header > .brand-slot-left {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .app-header.brand-header .lang-toggle {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .app-header.brand-header #refreshBtn {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .app-header.brand-header #logoutBtn {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .app-header.brand-header #headerDateInput {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 600px) {
+  .view-section,
+  .ready-strip {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .checkout-bar {
+    padding: 12px 16px;
+  }
+
+  /* Payment History: the desktop 5-column row is ~620px wide, so the
+     amount, View and Reprint sat off-screen. On a phone: order info on
+     top, then method + amount, then the two buttons. */
+  .history-row {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+
+  .history-row .info {
+    grid-column: 1 / -1;
+  }
+
+  .history-row .method-cell,
+  .history-row .view-cell {
+    justify-content: flex-start;
+  }
+
+  .history-row .small-btn {
+    min-height: 38px;
+    padding: 8px 14px;
   }
 }

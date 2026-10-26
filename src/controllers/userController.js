@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../prisma/client');
+const { disconnectUser } = require('../socket');
 
 // GET /api/users — manager only
 async function listUsers(req, res) {
@@ -15,10 +16,25 @@ async function listUsers(req, res) {
   }
 }
 
+// GET /api/users/waiters — active waitresses (id + name only), for the
+// cashier screen to pick whose paper ticket it's entering.
+async function listActiveWaiters(req, res) {
+  try {
+    const waiters = await prisma.user.findMany({
+      where: { role: 'WAITER', isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json(waiters);
+  } catch (err) {
+    console.error('listActiveWaiters error:', err);
+    res.status(500).json({ error: 'Failed to fetch waiters' });
+  }
+}
+
 // POST /api/users — manager only, creates a new staff account
 async function createUser(req, res) {
-  const { name, password, role } = req.body;
-  const email = (req.body.email || '').trim().toLowerCase();
+  const { name, email, password, role } = req.body;
   const allowedRoles = ['MANAGER', 'WAITER', 'BARISTA', 'CHEF', 'CASHIER'];
 
   if (!name || !email || !password || !allowedRoles.includes(role)) {
@@ -49,34 +65,42 @@ async function createUser(req, res) {
   }
 }
 
-// PATCH /api/users/:id — manager only, toggle active/inactive
-// Deactivating an account is how you "remove" a waiter/barista without
-// deleting their historical orders or audit trail.
-// PATCH /api/users/:id — manager only. Handles the active/inactive toggle
-// AND name/email edits (e.g. fixing a mistyped or wrongly-cased email —
-// see the createUser normalization above; this is how an already-existing
-// account gets corrected without needing to delete and recreate it).
+// PATCH /api/users/:id — manager only
+// Handles both the full Edit-modal save (name/email/isActive) and the
+// quick Activate/Deactivate toggle (isActive only) — every field here is
+// optional, only what's present in the body gets updated.
 async function updateUser(req, res) {
   const { id } = req.params;
-  const { isActive, name, email } = req.body;
-
-  if (isActive !== undefined && typeof isActive !== 'boolean') {
-    return res.status(400).json({ error: 'isActive must be a boolean' });
-  }
-  if (id === req.user.id && isActive === false) {
-    return res.status(400).json({ error: 'You cannot deactivate your own account' });
-  }
+  const { name, email, isActive } = req.body;
 
   const data = {};
-  if (isActive !== undefined) data.isActive = isActive;
+
   if (name !== undefined) {
-    if (!name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
+    if (!String(name).trim()) {
+      return res.status(400).json({ error: 'name cannot be empty' });
+    }
     data.name = name.trim();
   }
+
   if (email !== undefined) {
-    const normalized = email.trim().toLowerCase();
-    if (!normalized) return res.status(400).json({ error: 'email cannot be empty' });
-    data.email = normalized;
+    if (!String(email).trim()) {
+      return res.status(400).json({ error: 'email cannot be empty' });
+    }
+    data.email = email.trim();
+  }
+
+  if (isActive !== undefined) {
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ error: 'isActive must be a boolean' });
+    }
+    if (id === req.user.id && isActive === false) {
+      return res.status(400).json({ error: 'You cannot deactivate your own account' });
+    }
+    data.isActive = isActive;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
   }
 
   try {
@@ -85,6 +109,7 @@ async function updateUser(req, res) {
       data,
       select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
     });
+    if (user.isActive === false) disconnectUser(user.id);
     res.json(user);
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'User not found' });
@@ -94,49 +119,4 @@ async function updateUser(req, res) {
   }
 }
 
-// DELETE /api/users/:id — manager only, a real hard delete. Accounts with
-// any order/payment/audit history attached can't be removed from the
-// database (that history is permanent) — use Deactivate for those instead.
-// DELETE /api/users/:id — manager only, a real hard delete.
-//
-// Some links to a user are optional "who did this" attribution — a paid
-// order's cashierId, a voided order's voidedById, an audit log's actorId.
-// Deleting the account can safely clear those first (the payment/void/log
-// record itself stays exactly as it was, just with that field blanked).
-//
-// Other links are NOT optional — an order's waiterId, a status change's
-// changedById — those are core historical data, not attribution, so they
-// still block deletion entirely. Use Deactivate for those accounts.
-async function deleteUser(req, res) {
-  const { id } = req.params;
-
-  if (id === req.user.id) {
-    return res.status(400).json({ error: 'You cannot delete your own account' });
-  }
-
-  try {
-    const existing = await prisma.user.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ error: 'User not found' });
-
-    await prisma.$transaction([
-      prisma.order.updateMany({ where: { cashierId: id }, data: { cashierId: null } }),
-      prisma.order.updateMany({ where: { voidedById: id }, data: { voidedById: null } }),
-      prisma.auditLog.updateMany({ where: { actorId: id }, data: { actorId: null } }),
-      prisma.user.delete({ where: { id } }),
-    ]);
-
-    return res.status(204).send();
-  } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'User not found' });
-    if (err.code === 'P2003') {
-      return res.status(409).json({
-        error:
-          'This account created orders or changed order statuses itself — that\'s core order history, not just attribution, so it can\'t be deleted. Use Deactivate instead.',
-      });
-    }
-    console.error('deleteUser error:', err);
-    return res.status(500).json({ error: 'Failed to delete user' });
-  }
-}
-
-module.exports = { listUsers, createUser, updateUser, deleteUser };
+module.exports = { listUsers, listActiveWaiters, createUser, updateUser };

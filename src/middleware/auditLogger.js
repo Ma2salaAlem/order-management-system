@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const prisma = require('../prisma/client');
-const { lineTotal } = require('../utils/pricing');
 
 // One-way hash of the bearer token — for correlation ("same token used
 // twice"), never for replay. The raw JWT is never persisted.
@@ -26,7 +25,10 @@ function baseFields(req) {
  */
 async function logOrderCreated(order, req) {
   try {
-    const totalAmount = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
+    const totalAmount = order.items.reduce(
+      (sum, i) => sum + Number(i.unitPrice) * i.quantity,
+      0
+    );
 
     await prisma.auditLog.create({
       data: {

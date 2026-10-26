@@ -4,20 +4,26 @@ const router = express.Router();
 const authenticate = require('../middleware/auth');
 const roleGuard = require('../middleware/roleGuard');
 const {
-  listCategoriesFlat,
   listMenuItems,
+  listCategoriesFlat,
+  createCategory,
+  renameCategory,
+  deleteCategory,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
-} = require('../controllers/menuController');
+} = require('../controllers/menuItemController');
 
-// Menu editing is manager-only — separate from whatever endpoint the
-// Waiter screen uses to browse the live menu (that one presumably already
-// filters to isAvailable items; this one is the management view).
-router.use(authenticate);
-router.use(roleGuard(['MANAGER']));
+// Menu management — manager only, same as /api/users, /api/reports, /api/stock.
+router.use(authenticate, roleGuard(['MANAGER']));
 
+// IMPORTANT: /categories must be registered before /:id so it isn't
+// swallowed by the :id param route below.
 router.get('/categories', listCategoriesFlat);
+router.post('/categories', createCategory);
+router.patch('/categories/:id', renameCategory);
+router.delete('/categories/:id', deleteCategory);
+
 router.get('/', listMenuItems);
 router.post('/', createMenuItem);
 router.patch('/:id', updateMenuItem);

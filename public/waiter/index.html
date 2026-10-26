@@ -2,102 +2,110 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Waiter — Order Board</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Waiter · Ebony</title>
+<link rel="icon" type="image/svg+xml" href="/icons/waiter.svg" />
+<!-- Home Screen app icon (iPhone) + app details (Android) -->
+<link rel="apple-touch-icon" href="/icons/waiter-180.png" />
+<link rel="manifest" href="/icons/waiter.webmanifest" />
+<meta name="theme-color" content="#0e1116" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 <link rel="stylesheet" href="/theme.css" />
 <link rel="stylesheet" href="waiter.css" />
 </head>
 <body>
 
-  <!-- ================= LOGIN ================= -->
-  <div id="loginScreen" class="login-screen">
-    <div class="login-card">
-      <h1>ORDER BOARD</h1>
-      <p class="subtitle">Waiter sign in</p>
-
-      <form id="loginForm">
-        <label for="email">Email</label>
-        <input type="email" id="email" autocomplete="username" required />
-
-        <label for="password">Password</label>
-        <input type="password" id="password" autocomplete="current-password" required />
-
-        <button type="submit" class="login-submit">Sign In</button>
-        <p class="login-error" id="loginError"></p>
-      </form>
-
-      <div class="login-hint">
-        Demo login — <strong>waiter@demo.com</strong> / <strong>password123</strong><br/>
-        (created by <span class="mono">npm run seed</span>)
-      </div>
-    </div>
-  </div>
-
   <!-- ================= MAIN APP ================= -->
   <div id="appScreen" class="hidden">
 
-    <header class="app-header">
-      <div>
-        <h1 class="display-heading app-title">ORDER BOARD</h1>
+    <header class="app-header brand-header">
+      <div class="brand-slot-left">
         <p id="tableStatusLine" class="app-subtitle">Select a table to begin</p>
         <p id="dateDisplay" class="app-subtitle date-line"></p>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button id="bellBtn" class="icon-btn" aria-label="Notifications">
-          🔔<span id="unreadBadge" class="badge hidden">0</span>
+      <h1 class="brand"><span class="brand-name">Ebony</span><span class="brand-role">Waiter</span></h1>
+      <div class="brand-slot-right" style="display:flex;align-items:center;gap:8px;">
+        <button id="historyBtn" class="icon-btn" aria-label="My Orders" title="My Orders">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>
         </button>
-        <button id="logoutBtn" class="icon-btn" aria-label="Log out" title="Log out">🚪</button>
+        <button id="bellBtn" class="icon-btn" aria-label="Notifications">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+          <span id="unreadBadge" class="badge hidden">0</span>
+        </button>
+        <button id="logoutBtn" class="icon-btn" aria-label="Log out" title="Log out">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
       </div>
       <div id="notifPanel" class="notif-panel hidden"></div>
     </header>
 
-    <div class="view-toggle">
-      <button class="toggle-btn active" data-view="menu">Menu</button>
-      <button class="toggle-btn" data-view="orders">My Orders <span id="ordersCount"></span></button>
-    </div>
+    <!-- ================= STEP 1 — TABLE SELECTION ================= -->
+    <section id="stepTables" class="step-section">
+      <p class="section-label">Select a table to start an order</p>
+      <div id="tableChips" class="chip-row big-chip-row"></div>
+    </section>
 
-    <!-- ---------------- MENU VIEW ---------------- -->
-    <section id="menuView">
-      <div class="section-block">
-        <p class="section-label">Table</p>
-        <div id="tableChips" class="chip-row"></div>
+    <!-- ================= STEP 2 — MENU & ORDER SELECTION ================= -->
+    <section id="stepMenu" class="step-section hidden">
+      <div class="step-nav-row">
+        <button id="backToTablesBtn" class="secondary-btn">← Back to Tables</button>
+        <p class="ordering-for">Ordering for <strong id="orderingForTable"></strong></p>
       </div>
 
-      <div id="categoryTabs" class="category-tabs"></div>
-      <div id="subCategoryTabs" class="category-tabs subcategory-tabs hidden"></div>
-      <div id="subSubCategoryTabs" class="category-tabs subcategory-tabs subsubcategory-tabs hidden"></div>
+      <!-- Main categories: fixed, non-scrolling row — Drinks / Meals / Snacks -->
+      <div id="mainCategoryBar" class="main-category-bar">
+        <div id="categoryTabs" class="category-tabs"></div>
+      </div>
+
+      <!-- Subcategories: separate container below the main row, scrolls
+           horizontally, and only ever shows children of whichever main
+           category is currently active. -->
+      <div id="subCategoryBar" class="sub-category-bar">
+        <div id="subCategoryTabs" class="category-tabs subcategory-tabs hidden"></div>
+        <div id="subSubCategoryTabs" class="category-tabs subcategory-tabs subsubcategory-tabs hidden"></div>
+      </div>
 
       <div id="menuGrid" class="menu-grid"></div>
 
-      <p id="noTableWarning" class="no-table-warning hidden">
-        Select a table before adding items
-      </p>
+      <!-- Fixed checkout bar — becomes active once at least one item is in the cart -->
+      <div class="checkout-bar">
+        <span id="checkoutSummary" class="checkout-summary">0 items · $0.00</span>
+        <button id="viewOrderBtn" class="primary-btn" disabled>View Order / Checkout</button>
+      </div>
     </section>
 
-    <!-- ---------------- ORDERS VIEW ---------------- -->
-    <section id="ordersView" class="hidden">
+    <!-- ================= STEP 3 — RECEIPT & CONFIRMATION ================= -->
+    <section id="stepCheckout" class="step-section hidden">
+      <div class="step-nav-row">
+        <button id="backToMenuBtn" class="secondary-btn">← Back to Menu</button>
+        <p class="ordering-for">Table <strong id="checkoutTableLabel"></strong></p>
+      </div>
+
+      <h2 class="receipt-title">Order Summary</h2>
+      <div class="order-summary-panel">
+        <div id="basketItems" class="basket-items"></div>
+        <div class="basket-total-row">
+          <span>Total</span>
+          <span id="basketTotalBig" class="mono">$0.00</span>
+        </div>
+      </div>
+
+      <button id="acceptOrderBtn" class="send-btn">✅ Accept Order</button>
+    </section>
+
+    <!-- ================= MY ORDERS (history — reachable from Step 1 header) ================= -->
+    <section id="stepHistory" class="step-section hidden">
+      <div class="step-nav-row">
+        <button id="backFromHistoryBtn" class="secondary-btn">← Back</button>
+        <p class="ordering-for">My Orders</p>
+      </div>
       <label class="date-picker-label">
         Day
         <input type="date" id="ordersDateInput" class="date-input" />
       </label>
       <div id="ordersList" class="orders-list"></div>
     </section>
-
-    <!-- ---------------- BASKET ---------------- -->
-    <div id="basketSheet" class="basket-sheet hidden">
-      <button id="basketToggle" class="basket-summary">
-        <span><span id="basketCount">0</span> items · <span id="basketTotal" class="mono">$0.00</span></span>
-        <span id="basketChevron">▲</span>
-      </button>
-      <div id="basketDetail" class="basket-detail hidden">
-        <div id="basketItems" class="basket-items"></div>
-        <div class="basket-total-row">
-          <span>Total</span>
-          <span id="basketTotalBig" class="mono">$0.00</span>
-        </div>
-        <button id="sendOrderBtn" class="send-btn">📨 Send to Barista</button>
-      </div>
-    </div>
 
     <div id="toast" class="toast hidden"></div>
   </div>
@@ -108,29 +116,28 @@
       <h2 class="modal-title" id="customizeItemName">Item</h2>
       <p class="modal-sub" id="customizeItemPrice"></p>
 
-      <div id="temperatureSection" class="customize-section hidden">
-        <p class="customize-label">Temperature</p>
-        <div id="temperatureOptions" class="option-row"></div>
-      </div>
+      <div class="modal-card-body">
+        <div id="temperatureSection" class="customize-section hidden">
+          <p class="customize-label">Temperature</p>
+          <div id="temperatureOptions" class="option-row"></div>
+        </div>
 
-      <div id="ingredientsSection" class="customize-section hidden">
-        <p class="customize-label">Remove ingredients</p>
-        <div id="ingredientsOptions" class="option-row"></div>
-      </div>
+        <div id="ingredientGridSection" class="customize-section hidden">
+          <p class="customize-label">Ingredients</p>
+          <div id="ingredientGrid" class="ingredient-grid"></div>
+        </div>
 
-      <div id="extrasSection" class="customize-section hidden">
-        <p class="customize-label">Extras</p>
-        <div id="extrasOptions" class="option-row"></div>
-      </div>
-
-      <div class="customize-section">
-        <p class="customize-label">Quantity</p>
-        <div class="qty-controls">
-          <button type="button" id="customizeQtyMinus" class="qty-btn minus">−</button>
-          <span class="qty-value" id="customizeQtyValue">1</span>
-          <button type="button" id="customizeQtyPlus" class="qty-btn plus">+</button>
+        <div class="customize-section">
+          <p class="customize-label">Quantity</p>
+          <div class="qty-controls">
+            <button type="button" id="customizeQtyMinus" class="qty-btn minus">−</button>
+            <span class="qty-value" id="customizeQtyValue">1</span>
+            <button type="button" id="customizeQtyPlus" class="qty-btn plus">+</button>
+          </div>
         </div>
       </div>
+
+      <p id="modalError" class="modal-error hidden"></p>
 
       <div class="modal-actions">
         <button type="button" id="customizeCancelBtn" class="secondary-btn">Cancel</button>
@@ -139,17 +146,7 @@
     </div>
   </div>
 
-  <!-- ---------------- Order details modal ---------------- -->
-  <div id="orderDetailsModal" class="modal-overlay hidden">
-    <div class="modal-card">
-      <div class="modal-header-row">
-        <h2 class="modal-title">Order Details</h2>
-        <button type="button" id="orderDetailsCloseBtn" class="icon-btn" aria-label="Close">✕</button>
-      </div>
-      <div id="orderDetailsBody"></div>
-    </div>
-  </div>
-
+<script src="/i18n.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="waiter.js"></script>
 </body>
