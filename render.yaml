@@ -1,0 +1,23 @@
+# One-click hosting on Render (https://render.com): New → Blueprint → pick
+# this repo. Render asks for DATABASE_URL — paste a Postgres connection
+# string (e.g. a free https://neon.tech database; Render allows only one
+# free database per workspace). Generates JWT_SECRET, runs migrations, and
+# seeds demo data on the first boot.
+services:
+  - type: web
+    name: order-management-system
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: node scripts/fix-split-init-migration.js && npx prisma migrate deploy && node src/seedIfEmpty.js && node src/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_ORIGIN
+        value: "*"
+
